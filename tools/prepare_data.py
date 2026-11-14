@@ -7,6 +7,9 @@ Produit, dans data/input/ :
   dem.txt    taille d'une cellule en mètres (première ligne), puis infos
   ephem.csv  t_h,sun_az,sun_el,earth_az,earth_el  (240 lignes, pas de 3 h)
              azimuts exprimés dans le repère de l'IMAGE (rotation déjà appliquée)
+  frame.f32       repère local de chaque cellule (le moteur en déduit Soleil/Terre cellule par cellule)
+  ephem_vec.csv   directions Soleil/Terre sur 30 jours (pas de 3 h), repère lunaire
+  ephem_year.csv  idem sur une année entière (pas de 6 h) : utilisé par l'onglet Classer
 
 Usage :
   pip install rasterio numpy
@@ -19,8 +22,8 @@ Les deux types de fichiers sont reconnus automatiquement (polaire stéréographi
   python tools/prepare_data.py --dem ... --no-ephem        (DEM seul)
   python tools/prepare_data.py --ephem-only --lat -89.9 --lon 0 --theta 0   (éphémérides seules)
 
-Limite assumée : une seule éphéméride pour toute la zone (calculée au centre).
-Sur 25 km, l'erreur d'élévation du Soleil peut atteindre ~0,2 deg aux bords : à citer dans le pitch.
+Géométrie : le moteur C utilise frame.f32 + ephem_vec.csv pour calculer le Soleil et la Terre cellule par cellule
+(courbure de la Lune comprise). ephem.csv (valeurs au centre) ne sert plus qu'en secours pour d'anciens sites.
 """
 import argparse
 import datetime as dt
@@ -303,6 +306,11 @@ def prepare_ephem(lat, lon, start, theta, online=False):
             f.write("# t_h, direction du Soleil (unitaire), vecteur Terre (km), repere lunaire (x lon0, y est, z nord)\n")
             for i, (sv, ev) in enumerate(ephem_offline.vectors(start, N_STEPS, STEP_MIN)):
                 f.write(f"{i * STEP_MIN / 60:.1f},{sv[0]:.7f},{sv[1]:.7f},{sv[2]:.7f},{ev[0]:.2f},{ev[1]:.2f},{ev[2]:.2f}\n")
+    if not online:                                   # année complète à pas de 6 h, pour l'onglet Classer
+        with open(os.path.join(OUT, "ephem_year.csv"), "w", encoding="utf-8") as f:
+            f.write("# annee complete, pas de 6 h : t_h, direction du Soleil (unitaire), vecteur Terre (km), repere lunaire\n")
+            for i, (sv, ev) in enumerate(ephem_offline.vectors(start, 1461, 360)):
+                f.write(f"{i * 6.0:.1f},{sv[0]:.7f},{sv[1]:.7f},{sv[2]:.7f},{ev[0]:.1f},{ev[1]:.1f},{ev[2]:.1f}\n")
     print(f"ephem.csv écrit ({N_STEPS} lignes). Soleil : élévation {min(r[1] for r in sun):.2f} à {max(r[1] for r in sun):.2f} deg ; "
           f"Terre : {min(r[1] for r in earth):.2f} à {max(r[1] for r in earth):.2f} deg")
 
@@ -319,7 +327,7 @@ def find_dems(explicit):
     dirs = []
     for base in (".", root):
         for sub in ("", os.path.join("data", "source"), "data"):
-            d = os.path.normpath(os.path.join(base, sub))
+            d = os.path.abspath(os.path.join(base, sub))
             if d not in dirs:
                 dirs.append(d)
     for base in (".", root):                                            # tous les sous-dossiers de data/ (source, sources, ...)
@@ -327,7 +335,7 @@ def find_dems(explicit):
         if os.path.isdir(top):
             for cur, subs, _ in os.walk(top):
                 subs[:] = [x for x in subs if x not in ("input", "sites")]
-                d = os.path.normpath(cur)
+                d = os.path.abspath(cur)
                 if d not in dirs:
                     dirs.append(d)
     SEARCHED[:] = dirs
