@@ -1,6 +1,6 @@
-# [Project name / Nom du projet]
+# Séléné
 
-- **Challenge:** [challenge name](link to the challenge page)
+- **Challenge:** Lunar Landing Site Navigator [link](https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/)
 - **Space Apps team page / Page de l'équipe :** [link](https://www.spaceappschallenge.org/2026/find-a-team/)
 - **Local event:** NASA Space Apps Challenge 2026 – Besançon (14–15 Nov 2026)
 
