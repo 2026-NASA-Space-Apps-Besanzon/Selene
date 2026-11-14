@@ -8,7 +8,7 @@
 | Name / Nom | GitHub |
 |---|---|
 | name1 | @github-username1 |
-| name2 | @github-username2 |
+| name2 | @SyNo0oP |
 
 ## The problem / Le problème
 <!-- What does your challenge ask you to solve? 2–3 sentences, in English. -->
