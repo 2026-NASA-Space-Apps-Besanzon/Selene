@@ -1,0 +1,3 @@
+200.000
+# source=LDEM_80S_80MPP_ADJ.tiff centre lat=-89.9 lon=0.0 fenetre=25.6 km
+# rotation nord local / haut image = 0.00 deg
