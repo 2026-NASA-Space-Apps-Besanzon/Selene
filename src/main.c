@@ -342,6 +342,41 @@ static void build_mesh(void) {
         }
 }
 
+/* ===================== Vue du Sol (Horizon) ===================== */
+/* Convertit (azimut deg depuis le haut/Nord, élévation deg) en vecteur unitaire dans le repère 3D du terrain */
+static Vector3 azel_to_dir3d(double az_deg, double el_deg) {
+    double az = az_deg * PI / 180.0;
+    double el = el_deg * PI / 180.0;
+    /* Dans le mesh : +X = Est (droite), -Z = Nord (haut de l'image), +Y = Zénith */
+    return (Vector3){
+        (float)(cos(el) * sin(az)),
+        (float)(sin(el)),
+        (float)(-cos(el) * cos(az))
+    };
+}
+
+/* Recolore le terrain avec un éclairage directionnel réaliste basé sur le Soleil à l'instant t */
+static void recolor_ground(int t, int site_k) {
+    double sa = sun_az[t], se = sun_el[t];
+    if (have_frame) cell_azel(site_k, sun_v[t], &sa, &se);
+    Vector3 sun_dir = azel_to_dir3d(sa, se);
+    bool sun_up = (se > -0.5);
+
+    for (int k = 0; k < NCELL; k++) {
+        Vector3 n = {mesh.normals[3 * k], mesh.normals[3 * k + 1], mesh.normals[3 * k + 2]};
+        float diff = sun_up ? Vector3DotProduct(n, sun_dir) : 0.0f;
+        if (diff < 0.0f) diff = 0.0f;
+        /* Régolithe lunaire gris, faible lumière ambiante (clair de Terre / diffusion) */
+        float lum = sun_up ? (0.06f + 0.88f * diff) : 0.04f;
+        unsigned char c = (unsigned char)(Clamp(lum, 0.0f, 1.0f) * 255.0f);
+        mesh.colors[4 * k] = c;
+        mesh.colors[4 * k + 1] = c;
+        mesh.colors[4 * k + 2] = (unsigned char)(Clamp(lum * 1.04f, 0.0f, 1.0f) * 255.0f);
+        mesh.colors[4 * k + 3] = 255;
+    }
+    UpdateMeshBuffer(mesh, 3, mesh.colors, NCELL * 4, 0);
+}
+
 /* ===================== Globe lunaire ===================== */
 #define GLON 256                 /* doit correspondre à tools/prepare_globe.py */
 #define GLAT 128
@@ -663,7 +698,7 @@ int main(void) {
     Material gmat = LoadMaterialDefault();
     if (have_globe) SetMaterialTexture(&gmat, MATERIAL_MAP_DIFFUSE, g_tex);
 
-    int mode = have_globe ? 0 : 1;               /* 0 = globe, 1 = site */
+    int mode = have_globe ? 0 : 1;               /* 0 = globe, 1 = site, 2 = sol */
     int cur_site = -1;                           /* -1 = zone initiale, sinon indice dans pts[] */
     int site_ready = 1;
     int edit_idx = -1;                           /* point en cours de renommage (-1 = aucun) */
@@ -676,13 +711,14 @@ int main(void) {
     float gpick_lat = 0, gpick_lon = 0;
 
     float exag = 2.0f, smax = 15.0f, time_f = 0.0f;
-    int layer = 0, prev_t = -1, prev_layer = -1;
+    int layer = 0, prev_t = -1, prev_layer = -1, prev_mode = -1;
     float prev_smax = -1, prev_exag = -1;
     bool eng = false, playing = false;
     float play_acc = 0.0f;
-    Site site = {0};
+    Site site = {true, GW / 2, GH / 2};
 
     float yaw = 0.0f, pitch = 0.9f, dist = 120.0f;
+    float gnd_yaw = 0.0f, gnd_pitch = 0.05f;     /* orientation de la tête en vue du sol (0 = Nord) */
     Camera3D cam = {0};
     cam.up = (Vector3){0, 1, 0}; cam.fovy = 45.0f; cam.projection = CAMERA_PERSPECTIVE;
 
@@ -716,6 +752,7 @@ int main(void) {
             }
         }
         g_block = g_dd_open;
+
         /* --- saisie du nouveau nom d'un point --- */
         if (edit_idx >= 0 && mode != 0) { commit_name(edit_idx, edit_buf); edit_idx = -1; }
         if (edit_idx >= 0) {
@@ -744,6 +781,9 @@ int main(void) {
 
         int sw = GetScreenWidth(), sh = GetScreenHeight();
         int gm = (mode == 0);
+        int sm = (mode == 2);                    /* mode vue du sol */
+        float eff_exag = sm ? 1.0f : exag;       /* en vue du sol, relief réel (x1) indispensable pour un horizon exact */
+
         Rectangle view = {PANEL_W, 0, (float)(sw - PANEL_W), (float)(gm ? sh : sh - TL_H)};
         Rectangle tl = {PANEL_W, (float)(sh - TL_H), (float)(sw - PANEL_W), TL_H};
         Vector2 m = GetMousePosition();
@@ -754,25 +794,50 @@ int main(void) {
             rt_w = vw; rt_h = vh;
         }
 
-        /* --- caméra orbitale (réglages propres à chaque vue) --- */
-        float *cy = gm ? &gyaw : &yaw, *cp = gm ? &gpitch : &pitch, *cd = gm ? &gdist : &dist;
-        float pmin = gm ? -1.5f : 0.12f, dmin = gm ? 130.0f : 25.0f, dmax = gm ? 600.0f : 400.0f;
-        Rectangle zo = {view.x + view.width - 262, 6, 256, 30};      /* boutons de taille de zone (onglet Site) */
+        /* --- caméra (orbitale pour Globe/Site, première personne pour Sol) --- */
+        float *cy = gm ? &gyaw : (sm ? &gnd_yaw : &yaw);
+        float *cp = gm ? &gpitch : (sm ? &gnd_pitch : &pitch);
+        float *cd = gm ? &gdist : &dist;
+        float pmin = gm ? -1.5f : (sm ? -0.45f : 0.12f);
+        float pmax = sm ? 1.25f : 1.5f;
+        float dmin = gm ? 130.0f : 25.0f, dmax = gm ? 600.0f : 400.0f;
+
+        Rectangle zo = {view.x + view.width - 262, 6, 256, 30};      /* boutons de taille de zone */
         bool in_view = CheckCollisionPointRec(m, view) && (gm || !CheckCollisionPointRec(m, zo));
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { press = m; press_in_view = in_view; }
         if (press_in_view && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             Vector2 d = GetMouseDelta();
-            *cy -= d.x * 0.006f;
-            *cp = Clamp(*cp + d.y * 0.006f, pmin, 1.5f);
+            if (sm) {
+                *cy += d.x * 0.005f;
+                *cp = Clamp(*cp - d.y * 0.005f, pmin, pmax);
+            } else {
+                *cy -= d.x * 0.006f;
+                *cp = Clamp(*cp + d.y * 0.006f, pmin, pmax);
+            }
         }
-        if (in_view) *cd = Clamp(*cd * (1.0f - GetMouseWheelMove() * 0.08f), dmin, dmax);
-        cam.target = (Vector3){0, 0, 0};
-        cam.position = (Vector3){*cd * cosf(*cp) * sinf(*cy), *cd * sinf(*cp), *cd * cosf(*cp) * cosf(*cy)};
+        if (in_view && !sm) *cd = Clamp(*cd * (1.0f - GetMouseWheelMove() * 0.08f), dmin, dmax);
+
+        if (sm && site.valid) {
+            int k = site.y * GW + site.x;
+            float eye_h = dem[k] / cell_m + fmaxf(15.0f / cell_m, 0.25f);
+            cam.position = (Vector3){site.x - GW / 2.0f, eye_h, site.y - GH / 2.0f};
+            Vector3 look = {
+                cosf(gnd_pitch) * sinf(gnd_yaw),
+                sinf(gnd_pitch),
+                -cosf(gnd_pitch) * cosf(gnd_yaw)
+            };
+            cam.target = Vector3Add(cam.position, look);
+            cam.fovy = 55.0f;
+        } else {
+            cam.fovy = 45.0f;
+            cam.target = (Vector3){0, 0, 0};
+            cam.position = (Vector3){*cd * cosf(*cp) * sinf(*cy), *cd * sinf(*cp), *cd * cosf(*cp) * cosf(*cy)};
+        }
 
         /* --- clic = sélection --- */
         if (press_in_view && IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && Vector2Distance(m, press) < 4.0f) {
             Ray ray = GetScreenToWorldRayEx((Vector2){m.x - view.x, m.y - view.y}, cam, vw, vh);
-            if (!gm) {
+            if (!gm && !sm) {
                 if (site_ready) {
                     RayCollision hit = GetRayCollisionMesh(ray, mesh, MatrixIdentity());
                     if (hit.hit) {
@@ -781,7 +846,7 @@ int main(void) {
                         site.y = (int)Clamp(roundf(hit.point.z + GH / 2.0f), 0, GH - 1);
                     }
                 }
-            } else {
+            } else if (gm) {
                 RayCollision hit = GetRayCollisionSphere(ray, (Vector3){0, 0, 0}, GLOBE_R);
                 if (hit.hit) {
                     Vector3 n = Vector3Normalize(hit.point);
@@ -800,11 +865,28 @@ int main(void) {
         }
         int t = (int)Clamp(time_f, 0, N_STEPS - 1);
 
+        /* --- calculs azimut / élévation du Soleil et de la Terre pour le site actif --- */
+        double cur_sa = sun_az[t], cur_se = sun_el[t], cur_ea = earth_az[t], cur_ee = earth_el[t];
+        if (site.valid) {
+            int k = site.y * GW + site.x;
+            if (have_frame) {
+                const float *f = &frame[9 * k];
+                double v[3] = {
+                    earth_v[t][0] - LUNAR_R_KM * f[0],
+                    earth_v[t][1] - LUNAR_R_KM * f[1],
+                    earth_v[t][2] - LUNAR_R_KM * f[2]
+                };
+                cell_azel(k, sun_v[t], &cur_sa, &cur_se);
+                cell_azel(k, v, &cur_ea, &cur_ee);
+            }
+        }
+
         /* --- mises à jour du terrain si nécessaire --- */
-        if (exag != prev_exag) { update_geometry(exag); prev_exag = exag; prev_t = -1; }
-        if (t != prev_t || layer != prev_layer || smax != prev_smax) {
-            recolor(layer, t, smax);
-            prev_t = t; prev_layer = layer; prev_smax = smax;
+        if (eff_exag != prev_exag) { update_geometry(eff_exag); prev_exag = eff_exag; prev_t = -1; }
+        if (t != prev_t || layer != prev_layer || smax != prev_smax || mode != prev_mode) {
+            if (sm && site.valid) recolor_ground(t, site.y * GW + site.x);
+            else recolor(layer, t, smax);
+            prev_t = t; prev_layer = layer; prev_smax = smax; prev_mode = mode;
         }
         if (gm && have_globe) {
             if (gexag != prev_gexag) { globe_update_geometry(gexag); prev_gexag = gexag; }
@@ -817,7 +899,7 @@ int main(void) {
 
         /* --- rendu 3D dans la texture --- */
         BeginTextureMode(rt);
-        ClearBackground(C_BG);
+        ClearBackground(sm ? (Color){4, 6, 10, 255} : C_BG);
         BeginMode3D(cam);
         rlDisableBackfaceCulling();
         if (gm) {
@@ -831,10 +913,28 @@ int main(void) {
             }
         } else if (site_ready) {
             DrawMesh(mesh, mat, MatrixIdentity());
-            draw_scale_3d(exag);
-            if (site.valid) {
+            if (sm && site.valid) {
                 int k = site.y * GW + site.x;
-                DrawSphere((Vector3){site.x - GW / 2.0f, dem[k] / cell_m * exag + 1.2f, site.y - GH / 2.0f}, 1.0f, WHITE);
+                float sky_r = 220.0f; /* distance d'affichage sur la voûte céleste */
+                Vector3 s_pos = Vector3Add(cam.position, Vector3Scale(azel_to_dir3d(cur_sa, cur_se), sky_r));
+                Vector3 e_pos = Vector3Add(cam.position, Vector3Scale(azel_to_dir3d(cur_ea, cur_ee), sky_r));
+
+                bool s_vis = illum[(size_t)t * NCELL + k];
+                bool e_vis = earthv[(size_t)t * NCELL + k];
+
+                /* Soleil (halo + disque) */
+                DrawSphere(s_pos, s_vis ? 5.5f : 3.5f, s_vis ? (Color){255, 210, 100, 90} : (Color){120, 90, 40, 60});
+                DrawSphere(s_pos, 3.0f, s_vis ? (Color){255, 245, 200, 255} : (Color){140, 105, 50, 160});
+
+                /* Terre (halo atmosphérique + globe bleu) */
+                DrawSphere(e_pos, e_vis ? 6.5f : 4.5f, e_vis ? (Color){88, 166, 232, 80} : (Color){50, 80, 110, 50});
+                DrawSphere(e_pos, 4.2f, e_vis ? C_EARTH : (Color){60, 95, 130, 160});
+            } else {
+                draw_scale_3d(eff_exag);
+                if (site.valid) {
+                    int k = site.y * GW + site.x;
+                    DrawSphere((Vector3){site.x - GW / 2.0f, dem[k] / cell_m * eff_exag + 1.2f, site.y - GH / 2.0f}, 1.0f, WHITE);
+                }
             }
         }
         EndMode3D();
@@ -844,6 +944,7 @@ int main(void) {
         BeginDrawing();
         ClearBackground(C_BG);
         DrawTextureRec(rt.texture, (Rectangle){0, 0, (float)vw, -(float)vh}, (Vector2){view.x, view.y}, WHITE);
+
         if (gm && have_globe) {
             for (int i = 0; i < npts; i++) {
                 Vector3 wp = Vector3Scale(sph(pts[i].lat, pts[i].lon), GLOBE_R * 1.02f);
@@ -854,7 +955,37 @@ int main(void) {
             }
             draw_compass(cam, view, vw, vh);
         }
-        if (!gm && site_ready) draw_scale_label(cam, view, vw, vh, exag);
+
+        if (sm && site_ready && site.valid) {
+            /* Repères cardinaux (N, E, S, O) sur l'horizon */
+            const char *card[4] = {"N", "E", "S", "O"};
+            Vector3 fwd = Vector3Normalize(Vector3Subtract(cam.target, cam.position));
+            for (int c = 0; c < 4; c++) {
+                Vector3 dir = azel_to_dir3d(c * 90.0, 0.0);
+                if (Vector3DotProduct(dir, fwd) > 0.2f) {
+                    Vector2 sp = GetWorldToScreenEx(Vector3Add(cam.position, Vector3Scale(dir, 200.0f)), cam, vw, vh);
+                    DrawText(card[c], (int)(view.x + sp.x) - 4, (int)sp.y - 8, 16, C_MUT);
+                }
+            }
+            /* Étiquettes Soleil et Terre dans le ciel */
+            int k = site.y * GW + site.x;
+            Vector3 sd = azel_to_dir3d(cur_sa, cur_se);
+            if (Vector3DotProduct(sd, fwd) > 0.2f) {
+                Vector2 sp = GetWorldToScreenEx(Vector3Add(cam.position, Vector3Scale(sd, 220.0f)), cam, vw, vh);
+                bool vis = illum[(size_t)t * NCELL + k];
+                DrawText(vis ? TextFormat("Soleil (%.1f°)", cur_se) : "Soleil (masqué)",
+                         (int)(view.x + sp.x) + 12, (int)sp.y - 8, 14, vis ? C_SUN : C_MUT);
+            }
+            Vector3 ed = azel_to_dir3d(cur_ea, cur_ee);
+            if (Vector3DotProduct(ed, fwd) > 0.2f) {
+                Vector2 sp = GetWorldToScreenEx(Vector3Add(cam.position, Vector3Scale(ed, 220.0f)), cam, vw, vh);
+                bool vis = earthv[(size_t)t * NCELL + k];
+                DrawText(vis ? TextFormat("Terre (%.1f°)", cur_ee) : "Terre (masquée)",
+                         (int)(view.x + sp.x) + 14, (int)sp.y - 8, 14, vis ? C_EARTH : C_MUT);
+            }
+        }
+
+        if (!gm && !sm && site_ready) draw_scale_label(cam, view, vw, vh, eff_exag);
         if (!gm && !site_ready) {
             DrawText("Site non préparé", (int)view.x + vw / 2 - 70, vh / 2 - 10, 20, C_MUT);
         }
@@ -867,7 +998,8 @@ int main(void) {
             if (ui_button((Rectangle){zo.x + zo.width - 38, zo.y + 3, 34, 24}, "+", false) && can_zoom && zlev < 4) { zlev++; pending_load = cur_site; }
         }
         DrawText(gm ? "Glisser = tourner  |  molette = zoom  |  clic = marquer un point"
-                    : "Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site",
+                    : (sm ? "Glisser = regarder autour (360°)  |  relief réel x1"
+                          : "Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site"),
                  (int)view.x + 12, 10, 14, C_MUT);
 
         /* panneau gauche */
@@ -879,11 +1011,16 @@ int main(void) {
         else if (site_ready) {
             float side = GW * cell_m / 1000.0f;
             DrawText(TextFormat("Carré de %.1f x %.1f km (%.0f km²)", side, side, side * side), 18, (int)y, 14, C_MUT); y += 18;
-            DrawText(TextFormat("Cellule : %.0f m  |  relief x%.1f", cell_m, exag), 18, (int)y, 14, C_MUT); y += 24;
+            DrawText(TextFormat("Cellule : %.0f m  |  relief x%.1f", cell_m, eff_exag), 18, (int)y, 14, C_MUT); y += 24;
         } else y += 26;
 
-        if (ui_button((Rectangle){18, y, 134, 28}, "Globe", gm) && have_globe) mode = 0;
-        if (ui_button((Rectangle){158, y, 134, 28}, "Site", !gm)) mode = 1;
+        /* 3 onglets : Globe | Site | Sol */
+        if (ui_button((Rectangle){18, y, 88, 28}, "Globe", gm) && have_globe) mode = 0;
+        if (ui_button((Rectangle){111, y, 88, 28}, "Site", mode == 1)) mode = 1;
+        if (ui_button((Rectangle){204, y, 88, 28}, "Sol", sm)) {
+            mode = 2;
+            if (!site.valid) { site.valid = true; site.x = GW / 2; site.y = GH / 2; }
+        }
         y += 40;
 
         if (gm) {
@@ -981,12 +1118,26 @@ int main(void) {
                     if (strlen(status_msg) > 40) DrawText(TextSubtext(status_msg, 40, 40), 18, (int)y, 14, C_BAD);
                 }
             } else {
-                DrawText("Couche affichée", 18, (int)y, 16, C_TXT); y += 22;
-                for (int i = 0; i < 4; i++) {
-                    if (ui_button((Rectangle){18, y, 274, 22}, layer_names[i], layer == i)) layer = i;
-                    y += 26;
+                if (!sm) {
+                    DrawText("Couche affichée", 18, (int)y, 16, C_TXT); y += 22;
+                    for (int i = 0; i < 4; i++) {
+                        if (ui_button((Rectangle){18, y, 274, 22}, layer_names[i], layer == i)) layer = i;
+                        y += 26;
+                    }
+                    y += 4;
+                } else {
+                    DrawText("Orientation rapide", 18, (int)y, 16, C_TXT); y += 22;
+                    if (ui_button((Rectangle){18, y, 134, 26}, "Viser Soleil", false)) {
+                        gnd_yaw = (float)(cur_sa * DEG2RAD);
+                        gnd_pitch = Clamp((float)(cur_se * DEG2RAD), -0.45f, 1.25f);
+                    }
+                    if (ui_button((Rectangle){158, y, 134, 26}, "Viser Terre", false)) {
+                        gnd_yaw = (float)(cur_ea * DEG2RAD);
+                        gnd_pitch = Clamp((float)(cur_ee * DEG2RAD), -0.45f, 1.25f);
+                    }
+                    y += 34;
                 }
-                y += 4;
+
                 if (ui_button((Rectangle){18, y, 274, 24}, eng ? "Mode ingénieur : activé" : "Mode ingénieur : désactivé", eng)) eng = !eng;
                 y += 34;
 
@@ -995,7 +1146,9 @@ int main(void) {
                 y += 26;
                 ui_slider(18, y, 274, "", &time_f, 0, N_STEPS - 1, ""); y += 42;
                 ui_slider(18, y, 274, "Pente maximale admise", &smax, 2, 30, TextFormat("%.0f°", smax)); y += 50;
-                ui_slider(18, y, 274, "Exagération verticale", &exag, 1, 6, TextFormat("x%.1f", exag)); y += 54;
+                if (!sm) {
+                    ui_slider(18, y, 274, "Exagération verticale", &exag, 1, 6, TextFormat("x%.1f", exag)); y += 54;
+                }
 
                 /* fiche du site */
                 DrawRectangle(18, (int)y, 274, 1, C_LINE); y += 10;
@@ -1012,8 +1165,8 @@ int main(void) {
                     if (eng) {
                         DrawText(TextFormat("Cellule (x, y) : %d, %d", site.x, site.y), 18, (int)y, 14, C_MUT); y += 20;
                         DrawText(TextFormat("Altitude : %.0f m   Pente : %.1f°", dem[k], slope_deg[k]), 18, (int)y, 14, C_MUT); y += 20;
-                        DrawText(TextFormat("Soleil az/él : %.0f° / %.1f°", sun_az[t], sun_el[t]), 18, (int)y, 14, C_MUT); y += 20;
-                        DrawText(TextFormat("Terre az/él : %.0f° / %.1f°", earth_az[t], earth_el[t]), 18, (int)y, 14, C_MUT); y += 26;
+                        DrawText(TextFormat("Soleil az/él : %.0f° / %.1f°", cur_sa, cur_se), 18, (int)y, 14, C_MUT); y += 20;
+                        DrawText(TextFormat("Terre az/él : %.0f° / %.1f°", cur_ea, cur_ee), 18, (int)y, 14, C_MUT); y += 26;
                     }
                     bool ok = slope_deg[k] <= smax;
                     DrawRectangle(18, (int)y, 274, 34, ok ? (Color){29, 58, 44, 255} : (Color){65, 35, 31, 255});

@@ -10,8 +10,12 @@ Produit, dans data/input/ :
 
 Usage :
   pip install rasterio numpy
+  python tools/prepare_data.py --lat -89.9 --lon 0         (cherche tout seul LDEM_80S_* et/ou LDEM128_*)
   python tools/prepare_data.py --dem LDEM_80S_80MPP_ADJ.TIF --lat -89.9 --lon 0
-  python tools/prepare_data.py --dem LDEM_80S_80MPP_ADJ.TIF --lat -89.9 --lon 0 --start 2026-12-01
+  python tools/prepare_data.py --dem LDEM128_PA_pixel_202405.tif --lat -60 --lon 30
+  python tools/prepare_data.py --lat -85 --lon 10 --source global     (forcer le MNT mondial)
+  python tools/prepare_data.py --lat -89.9 --lon 0 --start 2026-12-01
+Les deux types de fichiers sont reconnus automatiquement (polaire stéréographique ou mondial cylindrique).
   python tools/prepare_data.py --dem ... --no-ephem        (DEM seul)
   python tools/prepare_data.py --ephem-only --lat -89.9 --lon 0 --theta 0   (éphémérides seules)
 
@@ -114,9 +118,50 @@ def prepare_dem(path, lat, lon, cell_m):
     return theta
 
 
-def prepare_dem_global(path, lat, lon, cell_m, zoom=1.0):
-    """Zone locale prise dans un DEM mondial (projection cylindrique, ex. ldem_64 du CGI Moon Kit).
-    La grille est orientée nord en haut : aucune rotation des azimuts (theta = 0)."""
+def _aeqd_inverse(lat0, lon0, X, Y):
+    """Grille plane (m, x = est, y = nord au centre) -> vecteurs unitaires, lat, lon (deg).
+    Projection azimutale équidistante centrée en (lat0, lon0) : exacte partout, y compris aux pôles."""
+    la, lo = math.radians(lat0), math.radians(lon0)
+    c = np.array([math.cos(la) * math.cos(lo), math.cos(la) * math.sin(lo), math.sin(la)])
+    e = np.array([-math.sin(lo), math.cos(lo), 0.0])
+    n = np.array([-math.sin(la) * math.cos(lo), -math.sin(la) * math.sin(lo), math.cos(la)])
+    d = np.hypot(X, Y)
+    s = d / MOON_R
+    dd = np.maximum(d, 1e-9)
+    dirv = (X / dd)[..., None] * e + (Y / dd)[..., None] * n
+    p = np.cos(s)[..., None] * c + np.sin(s)[..., None] * dirv
+    lat = np.degrees(np.arcsin(np.clip(p[..., 2], -1.0, 1.0)))
+    lon = np.degrees(np.arctan2(p[..., 1], p[..., 0]))
+    return p, lat, lon
+
+
+def vertical_scale(ds, vscale=None, voffset=None):
+    """Renvoie (échelle, décalage, description) tels que mètres = valeur * échelle + décalage."""
+    if vscale is not None:
+        return vscale, voffset or 0.0, "imposé (--vscale)"
+    sc = ds.scales[0] if ds.scales else None
+    of = ds.offsets[0] if ds.offsets else None
+    if (sc not in (None, 1.0)) or (of not in (None, 0.0)):
+        return (sc if sc is not None else 1.0), (of or 0.0), "métadonnées du fichier"
+    from rasterio.enums import Resampling
+    dtype = ds.dtypes[0]
+    sm = ds.read(1, out_shape=(max(ds.height // 32, 1), max(ds.width // 32, 1)),
+                 resampling=Resampling.nearest).astype("float64")
+    if ds.nodata is not None:
+        sm = sm[sm != ds.nodata]
+    sm = sm[np.isfinite(sm)]
+    amax = float(np.abs(sm).max()) if sm.size else 0.0
+    if dtype == "uint16":
+        return 0.5, -10000.0, "uint16 décalé : (v - 20000) x 0,5"
+    if dtype.startswith("float"):
+        return (1000.0, 0.0, "kilomètres") if amax < 30 else (1.0, 0.0, "mètres")
+    return (0.5, 0.0, "demi-mètres") if amax > 12500 else (1.0, 0.0, "mètres")
+
+
+def prepare_dem_global(path, lat, lon, cell_m, zoom=1.0, vscale=None, voffset=None):
+    """Zone locale prise dans un DEM mondial (projection cylindrique : LDEM128_PA_pixel_*, ldem_64...).
+    La zone est rééchantillonnée dans une grille plane centrée sur le site (nord en haut au centre, theta = 0).
+    Fonctionne à toute latitude, pôles compris."""
     import rasterio
     from rasterio.windows import Window
 
@@ -126,17 +171,25 @@ def prepare_dem_global(path, lat, lon, cell_m, zoom=1.0):
         native = math.radians(deg) * MOON_R                   # m / pixel à l'équateur
         if cell_m is None:
             cell_m = round(native * zoom)
-        is_float = ds.dtypes[0].startswith("float")
-        half = GRID * cell_m / 2.0
-        dlat = math.degrees(half / MOON_R)
-        dlon = math.degrees(half / (MOON_R * max(math.cos(math.radians(lat)), 0.05)))
-        r0 = max(int(math.floor((90 - (lat + dlat)) / deg)) - 2, 0)
-        r1 = min(int(math.ceil((90 - (lat - dlat)) / deg)) + 2, H)
-        c0 = int(math.floor((lon - dlon + 180) / deg)) - 2
-        c1 = int(math.ceil((lon + dlon + 180) / deg)) + 2
+        scale, offset, how = vertical_scale(ds, vscale, voffset)
+        nodata = ds.nodata
+        print(f"MNT mondial {os.path.basename(path)} : {W}x{H}, type {ds.dtypes[0]}, altitudes en {how}")
+
+        # grille locale : x vers l'est, y vers le nord, centrée sur le site
+        idx = np.arange(GRID)
+        xs = (idx - (GRID - 1) / 2.0) * cell_m
+        ys = ((GRID - 1) / 2.0 - idx) * cell_m
+        X, Y = np.meshgrid(xs, ys)
+        n0, lat_g, lon_g = _aeqd_inverse(lat, lon, X, Y)
+        lonu = lon + ((lon_g - lon + 180.0) % 360.0 - 180.0)  # longitude continue autour du site
+
+        r0 = max(int(math.floor((90.0 - lat_g.max()) / deg)) - 2, 0)
+        r1 = min(int(math.ceil((90.0 - lat_g.min()) / deg)) + 2, H)
+        c0 = int(math.floor((lonu.min() + 180.0) / deg)) - 2
+        c1 = int(math.ceil((lonu.max() + 180.0) / deg)) + 2
         cols = np.arange(c0, c1) % W                          # la longitude boucle à 180 deg
         if (r1 - r0) * len(cols) > 120_000_000:
-            sys.exit("[!] Zone trop grande pour ce site (trop proche d'un pôle) : choisissez une zone plus petite.")
+            sys.exit("[!] Zone trop grande pour ce site : choisissez une zone plus petite (--zoom).")
         block = np.empty((r1 - r0, len(cols)), dtype="float64")
         i = 0
         while i < len(cols):                                  # lecture par morceaux contigus
@@ -145,27 +198,28 @@ def prepare_dem_global(path, lat, lon, cell_m, zoom=1.0):
                 j += 1
             block[:, i:j + 1] = ds.read(1, window=Window(int(cols[i]), r0, j - i + 1, r1 - r0)).astype("float64")
             i = j + 1
-    block = block * 1000.0 if is_float else (block - 20000.0) * 0.5   # -> mètres
 
-    # grille locale : x vers l'est, y vers le nord, centrée sur le site
-    idx = np.arange(GRID)
-    xs = (idx - (GRID - 1) / 2.0) * cell_m
-    ys = ((GRID - 1) / 2.0 - idx) * cell_m
-    X, Y = np.meshgrid(xs, ys)
-    lat_g = np.clip(lat + np.degrees(Y / MOON_R), -90.0, 90.0)
-    lon_g = lon + np.degrees(X / (MOON_R * np.maximum(np.cos(np.radians(lat_g)), 0.05)))
+    bad = ~np.isfinite(block)
+    if nodata is not None:
+        bad |= (block == nodata)
+    block = block * scale + offset
+    if bad.any():
+        block[bad] = float(block[~bad].mean()) if (~bad).any() else 0.0
+
     fr = np.clip((90.0 - lat_g) / deg - 0.5 - r0, 0, block.shape[0] - 1.001)
-    fc = np.clip((lon_g + 180.0) / deg - 0.5 - c0, 0, block.shape[1] - 1.001)
+    fc = np.clip((lonu + 180.0) / deg - 0.5 - c0, 0, block.shape[1] - 1.001)
     ri, ci = fr.astype(int), fc.astype(int)
     wr, wc = fr - ri, fc - ci
     arr = ((1 - wr) * (1 - wc) * block[ri, ci] + (1 - wr) * wc * block[ri, ci + 1]
            + wr * (1 - wc) * block[ri + 1, ci] + wr * wc * block[ri + 1, ci + 1]).astype("<f4")
+    if arr.min() < -20000 or arr.max() > 20000:
+        print("[!] Altitudes hors norme (attendu environ -9000 à +11000 m) : corrigez avec --vscale (ex. 0.5, 1, 1000).")
 
-    n0 = _vec(lat_g, lon_g)
-    lo_r, la_r = np.radians(lon_g), np.radians(lat_g)
-    ex = np.stack([-np.sin(lo_r), np.cos(lo_r), np.zeros_like(lo_r)], axis=-1)
-    ey = np.stack([-np.sin(la_r) * np.cos(lo_r), -np.sin(la_r) * np.sin(lo_r), np.cos(la_r)], axis=-1)
-    write_frame(n0, ex, ey)
+    # axes de l'image dans le repère lunaire (même méthode que la version polaire)
+    dlt = 100.0
+    px, _, _ = _aeqd_inverse(lat, lon, X + dlt, Y)
+    py, _, _ = _aeqd_inverse(lat, lon, X, Y + dlt)
+    write_frame(n0, _tangent(n0, px), _tangent(n0, py))
 
     os.makedirs(OUT, exist_ok=True)
     arr.tofile(os.path.join(OUT, "dem.f32"))
@@ -254,19 +308,58 @@ def prepare_ephem(lat, lon, start, theta, online=False):
 
 
 # ------------------------------------------------------------------ main
-def find_first(patterns):
-    import glob
-    for pat in patterns:
-        found = sorted(glob.glob(pat))
-        if found:
-            return found[0]
-    return None
+SEARCHED = []
+SKIP = ("_ERR", "_EFFRES", "_HILL", "LDSM", "LDEC", "_RMSD", "_ROUGH")
+
+
+def find_dems(explicit):
+    """Fichiers MNT candidats : ceux donnés en option, puis ceux trouvés dans ., data/source, data."""
+    found = [p for p in explicit if p]
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))      # racine du projet (parent de tools/)
+    dirs = []
+    for base in (".", root):
+        for sub in ("", os.path.join("data", "source"), "data"):
+            d = os.path.normpath(os.path.join(base, sub))
+            if d not in dirs:
+                dirs.append(d)
+    for base in (".", root):                                            # tous les sous-dossiers de data/ (source, sources, ...)
+        top = os.path.join(base, "data")
+        if os.path.isdir(top):
+            for cur, subs, _ in os.walk(top):
+                subs[:] = [x for x in subs if x not in ("input", "sites")]
+                d = os.path.normpath(cur)
+                if d not in dirs:
+                    dirs.append(d)
+    SEARCHED[:] = dirs
+    for d in dirs:
+        if not os.path.isdir(d):
+            continue
+        for name in sorted(os.listdir(d)):
+            low = name.lower()
+            if (low.startswith("ldem") and low.endswith((".tif", ".tiff"))
+                    and not any(k.lower() in low for k in SKIP)):
+                p = os.path.join(d, name)
+                if p not in found:
+                    found.append(p)
+    return found
+
+
+def dem_kind(path):
+    """'global' (cylindrique, longitude/latitude) ou 'polar' (projeté, stéréographique)."""
+    import rasterio
+    with rasterio.open(path) as ds:
+        if ds.crs is not None:
+            return "global" if ds.crs.is_geographic else "polar"
+        return "global" if abs(ds.width / ds.height - 2.0) < 0.05 else "polar"
 
 
 def main():
     ap = argparse.ArgumentParser(description="Prépare les données réelles pour Selene")
-    ap.add_argument("--dem", help="GeoTIFF LOLA polaire 80S (cherché automatiquement si absent)")
-    ap.add_argument("--global-dem", help="DEM mondial type ldem_64 (cherché automatiquement si absent)")
+    ap.add_argument("--dem", help="GeoTIFF LOLA (polaire 80S ou mondial : le type est détecté ; cherché automatiquement si absent)")
+    ap.add_argument("--global-dem", help="second MNT (optionnel) ; le type est détecté aussi")
+    ap.add_argument("--source", choices=["auto", "polar", "global"], default="auto", help="forcer le type de MNT utilisé")
+    ap.add_argument("--vscale", type=float, default=None, help="MNT mondial : mètres = valeur x vscale + voffset (si les altitudes sortent fausses)")
+    ap.add_argument("--voffset", type=float, default=None, help="voir --vscale")
     ap.add_argument("--out", default=os.path.join("data", "input"), help="dossier de sortie (un dossier par site)")
     ap.add_argument("--lat", type=float, default=-89.9, help="latitude du centre de la zone (deg, négatif au sud)")
     ap.add_argument("--lon", type=float, default=0.0, help="longitude Est du centre (deg)")
@@ -284,16 +377,41 @@ def main():
     start = dt.datetime.strptime(a.start, "%Y-%m-%d")
     theta = a.theta
     if not a.ephem_only:
-        polar = a.dem or find_first(["LDEM_80S*.tif*", "ldem_80s*.tif*"])
-        glob_dem = a.global_dem or find_first(["ldem_64*.tif*", "LDEM_64*.tif*", "ldem_16*.tif*", "LDEM_16*.tif*"])
-        if a.lat <= -81.0 and polar:
-            theta = prepare_dem(polar, a.lat, a.lon, (a.cell or 200.0) * a.zoom)
-        elif glob_dem:
-            if a.lat <= -81.0:
-                print("[!] DEM polaire introuvable : utilisation du DEM mondial (moins précis).")
-            theta = prepare_dem_global(glob_dem, a.lat, a.lon, a.cell * a.zoom if a.cell else None, a.zoom)
+        cands = find_dems([a.dem, a.global_dem])
+        kinds = {}
+        for p in cands:
+            try:
+                kinds[p] = dem_kind(p)
+            except Exception as ex:
+                print(f"[!] {p} illisible par rasterio : {ex}")
+        print("MNT trouvés :", ", ".join(f"{os.path.basename(p)} ({kinds.get(p, 'illisible')})" for p in cands) or "aucun")
+        if not cands:
+            print("Dossiers examinés :", "; ".join(SEARCHED))
+        polar = next((p for p in cands if kinds.get(p) == "polar"), None)
+        glob_dem = next((p for p in cands if kinds.get(p) == "global"), None)
+        cell = (a.cell or 200.0) * a.zoom
+        half_deg = math.degrees(GRID * cell / 2.0 / MOON_R) * 1.5          # demi-fenêtre, diagonale comprise
+        polar_ok = polar is not None and a.lat + half_deg <= -80.0         # le MNT polaire s'arrête à 80 deg S
+        if a.source == "polar":
+            use = "polar"
+        elif a.source == "global":
+            use = "global"
         else:
-            sys.exit("[!] Aucun DEM trouvé : placez LDEM_80S_80MPP_ADJ.tiff (pôle Sud) et/ou ldem_64.tif (mondial) dans le dossier du projet.")
+            use = "polar" if polar_ok else "global"
+        if use == "polar":
+            if not polar:
+                sys.exit("[!] Aucun MNT polaire (LDEM_80S_*.tif) trouvé : placez-le dans data/source/.")
+            theta = prepare_dem(polar, a.lat, a.lon, cell)
+        else:
+            if not glob_dem:
+                sys.exit("[!] Aucun MNT mondial (LDEM128_*.tif) trouvé dans data/source/ pour ce site"
+                         + (" (hors de la couverture du MNT polaire)." if polar else "."))
+            if a.source == "auto" and polar:
+                print("[i] Site hors de la couverture du MNT polaire : utilisation du MNT mondial.")
+            if a.source == "auto" and not polar and a.lat <= -80.0:
+                print("[i] Pas de MNT polaire : le MNT mondial est moins précis près du pôle.")
+            theta = prepare_dem_global(glob_dem, a.lat, a.lon, a.cell * a.zoom if a.cell else None, a.zoom,
+                                       a.vscale, a.voffset)
     elif theta is None:
         ap.error("--ephem-only demande --theta (voir dem.txt)")
     if not a.no_ephem:
