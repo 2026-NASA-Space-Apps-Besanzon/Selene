@@ -40,6 +40,11 @@ static float slope_deg[NCELL];
 static uint8_t illum[(size_t)N_STEPS * NCELL];   /* 1 = Soleil visible */
 static uint8_t earthv[(size_t)N_STEPS * NCELL];  /* 1 = Terre visible  */
 static double sun_az[N_STEPS], sun_el[N_STEPS], earth_az[N_STEPS], earth_el[N_STEPS];
+#define LUNAR_R_M 1737400.0
+#define LUNAR_R_KM 1737.4
+static float frame[NCELL * 9];              /* par cellule : verticale, "droite de l'image", "haut de l'image" (repère lunaire) */
+static double sun_v[N_STEPS][3], earth_v[N_STEPS][3];   /* direction du Soleil, vecteur Terre (km), repère lunaire */
+static int have_frame = 0;
 static float dem_min, dem_max;
 static int real_dem = 0, real_ephem = 0;
 
@@ -117,20 +122,59 @@ static void generate_mock_ephem(void) {
 }
 
 /* ===================== Moteur : raycasting ===================== */
-/* Vrai si l'astre (azimut depuis le Nord, élévation, en degrés) est visible depuis la cellule (x0, y0). */
+/* Vrai si l'astre (azimut depuis le haut de l'image, élévation, en degrés) est visible depuis la cellule (x0, y0).
+ * Le profil tient compte de la courbure de la Lune : le sol s'abaisse de s^2 / (2R) à la distance s. */
 static uint8_t visible(int x0, int y0, double az_deg, double el_deg) {
     if (el_deg <= 0.0) return 0;
     double az = az_deg * PI / 180.0;
-    double dx = sin(az), dy = -cos(az);              /* x = est, y = sud (lignes vers le bas) */
+    double dx = sin(az), dy = -cos(az);              /* x = droite, y = bas de l'image */
     double tan_el = tan(el_deg * PI / 180.0);
     float h0 = dem[y0 * GW + x0];
     for (int d = 1;; d++) {
-        if ((dem_max - h0) <= d * cell_m * tan_el) break;
+        double s = d * (double)cell_m, drop = s * s / (2.0 * LUNAR_R_M);
+        if ((dem_max - h0) - drop <= s * tan_el) break;
         int ix = (int)lround(x0 + dx * d), iy = (int)lround(y0 + dy * d);
         if (ix < 0 || ix >= GW || iy < 0 || iy >= GH) break;
-        if (dem[iy * GW + ix] - h0 > d * cell_m * tan_el) return 0;
+        if (dem[iy * GW + ix] - h0 - drop > s * tan_el) return 0;
     }
     return 1;
+}
+
+/* Hauteur et direction (dans le repère de l'image) d'un vecteur v vu depuis la cellule k */
+static void cell_azel(int k, const double v[3], double *az, double *el) {
+    const float *f = &frame[9 * k];
+    double dn = v[0] * f[0] + v[1] * f[1] + v[2] * f[2];
+    double len = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    *el = asin(dn / len) * 180.0 / PI;
+    double hx = v[0] - dn * f[0], hy = v[1] - dn * f[1], hz = v[2] - dn * f[2];
+    double right = hx * f[3] + hy * f[4] + hz * f[5], up = hx * f[6] + hy * f[7] + hz * f[8];
+    *az = atan2(right, up) * 180.0 / PI;
+}
+
+static int load_frame(const char *dir) {
+    char p[340];
+    snprintf(p, sizeof p, "%s/frame.f32", dir);
+    FILE *f = fopen(p, "rb");
+    if (!f) return 0;
+    size_t n = fread(frame, sizeof(float), (size_t)NCELL * 9, f);
+    fclose(f);
+    if (n != (size_t)NCELL * 9) return 0;
+    snprintf(p, sizeof p, "%s/ephem_vec.csv", dir);
+    f = fopen(p, "r");
+    if (!f) return 0;
+    char line[256];
+    int k = 0;
+    while (k < N_STEPS && fgets(line, sizeof line, f)) {
+        if (line[0] == '#') continue;
+        double t, a, b, c, d, e, g;
+        if (sscanf(line, "%lf,%lf,%lf,%lf,%lf,%lf,%lf", &t, &a, &b, &c, &d, &e, &g) == 7) {
+            sun_v[k][0] = a; sun_v[k][1] = b; sun_v[k][2] = c;
+            earth_v[k][0] = d; earth_v[k][1] = e; earth_v[k][2] = g;
+            k++;
+        }
+    }
+    fclose(f);
+    return k == N_STEPS;
 }
 
 static void compute_visibility(void) {
@@ -138,8 +182,16 @@ static void compute_visibility(void) {
         size_t off = (size_t)t * NCELL;
         for (int y = 0; y < GH; y++)
             for (int x = 0; x < GW; x++) {
-                illum[off + y * GW + x] = visible(x, y, sun_az[t], sun_el[t]);
-                earthv[off + y * GW + x] = visible(x, y, earth_az[t], earth_el[t]);
+                int k = y * GW + x;
+                double sa = sun_az[t], se = sun_el[t], ea = earth_az[t], ee = earth_el[t];
+                if (have_frame) {            /* géométrie propre à chaque cellule (courbure de la Lune incluse) */
+                    const float *f = &frame[9 * k];
+                    double v[3] = {earth_v[t][0] - LUNAR_R_KM * f[0], earth_v[t][1] - LUNAR_R_KM * f[1], earth_v[t][2] - LUNAR_R_KM * f[2]};
+                    cell_azel(k, sun_v[t], &sa, &se);
+                    cell_azel(k, v, &ea, &ee);
+                }
+                illum[off + k] = visible(x, y, sa, se);
+                earthv[off + k] = visible(x, y, ea, ee);
             }
     }
 }
@@ -165,9 +217,11 @@ static const Color C_SHADE = {35, 45, 59, 255}, C_BAD = {229, 96, 77, 255}, C_OK
 static const Color C_BTN = {42, 53, 68, 255}, C_HOT = {60, 74, 94, 255};
 
 static const void *g_active = NULL;   /* widget en cours de glissement */
+static bool g_block = false;          /* vrai quand le menu déroulant est ouvert (les autres widgets ignorent la souris) */
+static bool g_dd_open = false;
 
 static bool ui_button(Rectangle r, const char *txt, bool on) {
-    bool hot = CheckCollisionPointRec(GetMousePosition(), r);
+    bool hot = !g_block && CheckCollisionPointRec(GetMousePosition(), r);
     DrawRectangleRec(r, on ? C_SUN : (hot ? C_HOT : C_BTN));
     int w = MeasureText(txt, 16);
     DrawText(txt, (int)(r.x + (r.width - w) / 2), (int)(r.y + (r.height - 16) / 2), 16, on ? (Color){26, 20, 5, 255} : C_TXT);
@@ -181,7 +235,7 @@ static bool ui_slider(float x, float y, float w, const char *label, float *v, fl
     Rectangle track = {x, y + 26, w, 8};
     Rectangle hit = {x, y + 18, w, 24};
     Vector2 m = GetMousePosition();
-    if (CheckCollisionPointRec(m, hit) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) g_active = v;
+    if (!g_block && CheckCollisionPointRec(m, hit) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) g_active = v;
     bool changed = false;
     if (g_active == v) {
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
@@ -195,6 +249,31 @@ static bool ui_slider(float x, float y, float w, const char *label, float *v, fl
     DrawRectangle((int)x, (int)track.y, (int)(w * f), 8, C_SUN);
     DrawCircle((int)(x + w * f), (int)(track.y + 4), 8, C_TXT);
     return changed;
+}
+
+
+/* Menu déroulant : renvoie l'indice choisi, ou -1. Doit être appelé EN DERNIER (il se dessine par-dessus). */
+static int ui_dropdown(Rectangle r, const char **items, int n, int sel) {
+    Vector2 m = GetMousePosition();
+    bool hot = CheckCollisionPointRec(m, r);
+    DrawRectangleRec(r, hot ? C_HOT : C_BTN);
+    DrawText(TextFormat("Point : %s", items[sel]), (int)r.x + 10, (int)r.y + 6, 16, C_TXT);
+    DrawText("v", (int)(r.x + r.width - 18), (int)r.y + 6, 16, C_MUT);
+    int chosen = -1;
+    if (g_dd_open) {
+        for (int i = 0; i < n; i++) {
+            Rectangle it = {r.x, r.y + r.height + i * 26, r.width, 26};
+            bool h = CheckCollisionPointRec(m, it);
+            DrawRectangleRec(it, h ? C_HOT : C_BTN);
+            DrawText(items[i], (int)it.x + 10, (int)it.y + 5, 16, i == sel ? C_SUN : C_TXT);
+            if (h && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) chosen = i;
+        }
+    }
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (hot) g_dd_open = !g_dd_open;
+        else if (g_dd_open) g_dd_open = false;
+    }
+    return chosen;
 }
 
 /* ===================== Terrain 3D ===================== */
@@ -371,24 +450,210 @@ static int load_zone_center(const char *path, float *lat, float *lon) {
     return ok;
 }
 
+/* ===================== Points enregistrés et sites ===================== */
+#define MAX_PTS 16
+#define EPHEM_START "2026-12-01"   /* même date de départ pour tous les sites : indispensable pour les comparer */
+
+typedef struct { char id[16]; char name[32]; float lat, lon; } SavedPt;   /* id = nom du dossier (stable), name = nom affiché (modifiable) */
+static SavedPt pts[MAX_PTS];
+static int npts = 0, next_id = 1;
+static char status_msg[256] = "";
+
+static void save_points(void) {
+    FILE *f = fopen("data/points.txt", "w");
+    if (!f) return;
+    fprintf(f, "%d\n", next_id);
+    for (int i = 0; i < npts; i++) fprintf(f, "%s %.5f %.5f %s\n", pts[i].id, pts[i].lat, pts[i].lon, pts[i].name);
+    fclose(f);
+}
+
+static void load_points(void) {
+    FILE *f = fopen("data/points.txt", "r");
+    if (!f) return;
+    char line[160];
+    if (fgets(line, sizeof line, f)) next_id = atoi(line) > 0 ? atoi(line) : 1;
+    while (npts < MAX_PTS && fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\r\n")] = 0;
+        SavedPt *p = &pts[npts];
+        p->name[0] = 0;
+        int n = sscanf(line, "%15s %f %f %31[^\n]", p->id, &p->lat, &p->lon, p->name);
+        if (n < 3) continue;
+        if (n == 3 || p->name[0] == 0) snprintf(p->name, sizeof p->name, "%s", p->id);   /* ancien format : nom = id */
+        npts++;
+    }
+    fclose(f);
+}
+
+/* Valide un nouveau nom (espaces de début/fin retirés, vide refusé) */
+static void commit_name(int idx, const char *buf) {
+    char tmp[32];
+    snprintf(tmp, sizeof tmp, "%s", buf);
+    int len = (int)strlen(tmp);
+    while (len > 0 && tmp[len - 1] == ' ') tmp[--len] = 0;
+    const char *b = tmp;
+    while (*b == ' ') b++;
+    if (*b == 0 || idx < 0 || idx >= npts) return;
+    snprintf(pts[idx].name, sizeof pts[idx].name, "%s", b);
+    save_points();
+}
+
+/* Zone initiale (data/input) : centre connu seulement si dem.txt l'indique */
+static float zone_lat = -90.0f, zone_lon = 0.0f;
+static int zone_valid = 0;
+
+/* Niveaux de taille de zone : multiplicateurs du côté (le niveau 1 = taille d'origine) */
+static const float zfac[5] = {0.5f, 1.0f, 2.0f, 4.0f, 8.0f};
+static const char *zname[5] = {"zx0.5", "", "zx2", "zx4", "zx8"};
+
+/* idx = -1 : zone initiale (data/input) ; sinon data/sites/<id> ; z = niveau de taille de zone */
+static void site_dir(int idx, int z, char *out, size_t n) {
+    char base[200];
+    if (idx < 0) snprintf(base, sizeof base, "data/input");
+    else snprintf(base, sizeof base, "data/sites/%s", pts[idx].id);
+    if (z == 1) snprintf(out, n, "%s", base);
+    else snprintf(out, n, "%s/%s", base, zname[z]);
+}
+
+static int site_prepared(int idx, int z) {
+    char dir[300], p[340];
+    site_dir(idx, z, dir, sizeof dir);
+    snprintf(p, sizeof p, "%s/dem.f32", dir);
+    if (!FileExists(p)) return 0;
+    snprintf(p, sizeof p, "%s/ephem.csv", dir);
+    return FileExists(p);
+}
+
+static void load_site_data(const char *dir) {
+    char p[340];
+    cell_m = 200.0f;
+    snprintf(p, sizeof p, "%s/dem.f32", dir);
+    real_dem = load_real_dem(p);
+    if (real_dem) { snprintf(p, sizeof p, "%s/dem.txt", dir); load_cell_size(p); }
+    else generate_synthetic_dem();
+    compute_slopes();
+    snprintf(p, sizeof p, "%s/ephem.csv", dir);
+    real_ephem = load_ephem(p);
+    if (!real_ephem) generate_mock_ephem();
+    have_frame = real_dem && real_ephem && load_frame(dir);
+    compute_visibility();
+}
+
+static void draw_message(const char *msg) {
+    BeginDrawing();
+    ClearBackground(C_BG);
+    int w = MeasureText(msg, 22);
+    DrawText(msg, (GetScreenWidth() - w) / 2, GetScreenHeight() / 2 - 11, 22, C_TXT);
+    EndDrawing();
+}
+
+static void read_log_tail(void) {
+    status_msg[0] = 0;
+    FILE *f = fopen("data/prepare_log.txt", "r");
+    if (!f) return;
+    char line[256], last[256] = "";
+    while (fgets(line, sizeof line, f)) if (line[0] != '\n' && line[0] != '\r') strcpy(last, line);
+    fclose(f);
+    last[strcspn(last, "\r\n")] = 0;
+    snprintf(status_msg, sizeof status_msg, "%s", last);
+}
+
+/* Lance tools/prepare_data.py pour ce site et ce niveau de zone (DEM + éphémérides). Bloque quelques secondes. */
+static void run_prepare(int idx, int z) {
+    char dir[300], cmd[1400];
+    site_dir(idx, z, dir, sizeof dir);
+    float lat = idx < 0 ? zone_lat : pts[idx].lat, lon = idx < 0 ? zone_lon : pts[idx].lon;
+    snprintf(cmd, sizeof cmd,
+             "python tools/prepare_data.py --lat %.4f --lon %.4f --out %s --zoom %.2f --start %s > data\\prepare_log.txt 2>&1"
+             " || py tools/prepare_data.py --lat %.4f --lon %.4f --out %s --zoom %.2f --start %s > data\\prepare_log.txt 2>&1",
+             lat, lon, dir, zfac[z], EPHEM_START, lat, lon, dir, zfac[z], EPHEM_START);
+    system(cmd);
+    if (site_prepared(idx, z)) status_msg[0] = 0; else read_log_tail();
+}
+
+/* Boussole : indique où sont le pôle Sud (S) et le pôle Nord (N) par rapport à la vue.
+ * Disque plein = pôle visible, anneau = caché derrière la Lune. */
+static void draw_compass(Camera3D cam, Rectangle view, int vw, int vh) {
+    Vector2 c0 = GetWorldToScreenEx((Vector3){0, 0, 0}, cam, vw, vh);
+    Vector3 pole[2] = {{0, -GLOBE_R * 1.02f, 0}, {0, GLOBE_R * 1.02f, 0}};
+    const char *lab[2] = {"S", "N"};
+    Color col[2] = {C_SUN, C_MUT};
+    Vector2 ctr = {view.x + view.width - 70, view.y + view.height - 70};
+    DrawCircle((int)ctr.x, (int)ctr.y, 46, (Color){16, 21, 28, 220});
+    DrawCircleLines((int)ctr.x, (int)ctr.y, 46, C_LINE);
+    for (int i = 0; i < 2; i++) {
+        Vector2 p = GetWorldToScreenEx(pole[i], cam, vw, vh);
+        Vector2 d = {p.x - c0.x, p.y - c0.y};
+        float len = sqrtf(d.x * d.x + d.y * d.y);
+        bool front = Vector3DotProduct(Vector3Normalize(pole[i]), Vector3Normalize(cam.position)) > 0.0f;
+        Vector2 tip = ctr;
+        if (len > 8.0f) tip = (Vector2){ctr.x + d.x / len * 32.0f, ctr.y + d.y / len * 32.0f};
+        DrawLineEx(ctr, tip, 2.0f, col[i]);
+        if (front) DrawCircle((int)tip.x, (int)tip.y, 6, col[i]); else DrawCircleLines((int)tip.x, (int)tip.y, 6, col[i]);
+        DrawText(lab[i], (int)tip.x - 3 + (int)((tip.x - ctr.x) * 0.3f), (int)tip.y - 7 + (int)((tip.y - ctr.y) * 0.3f), 14, WHITE);
+        if (i == 0 && front) {   /* repère directement sur la Lune */
+            DrawCircleLines((int)(view.x + p.x), (int)p.y, 7, C_SUN);
+            DrawText("Pôle Sud", (int)(view.x + p.x) + 10, (int)p.y - 7, 14, C_SUN);
+        }
+    }
+}
+
+/* ===================== Échelle (onglet Site) ===================== */
+/* Longueur "ronde" de la barre d'échelle, environ 1/4 du côté de la zone */
+static float nice_len_m(void) {
+    static const float steps[] = {200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000};
+    float target = 0.25f * GW * cell_m, best = steps[0];
+    for (int i = 0; i < 10; i++) if (steps[i] <= target) best = steps[i];
+    return best;
+}
+
+/* Barre le long du bord sud du terrain (elle suit le relief) */
+static void draw_scale_3d(float exag) {
+    int n = (int)roundf(nice_len_m() / cell_m);
+    if (n > GW - 2) n = GW - 2;
+    if (n < 1) n = 1;
+    float zrow = (GH - 1) - GH / 2.0f;
+    Vector3 prev = {0};
+    for (int i = 0; i <= n; i++) {
+        Vector3 p = {i - GW / 2.0f, dem[(GH - 1) * GW + i] / cell_m * exag + 0.6f, zrow};
+        if (i > 0) DrawCylinderEx(prev, p, 0.35f, 0.35f, 6, WHITE);
+        prev = p;
+    }
+    Vector3 a = {-GW / 2.0f, dem[(GH - 1) * GW] / cell_m * exag + 0.6f, zrow};
+    DrawSphere(a, 0.8f, WHITE);
+    DrawSphere(prev, 0.8f, WHITE);
+}
+
+static void draw_scale_label(Camera3D cam, Rectangle view, int vw, int vh, float exag) {
+    float len_m = nice_len_m();
+    int n = (int)roundf(len_m / cell_m);
+    if (n > GW - 2) n = GW - 2;
+    if (n < 1) n = 1;
+    int im = n / 2;
+    float zrow = (GH - 1) - GH / 2.0f;
+    Vector3 w = {im - GW / 2.0f, dem[(GH - 1) * GW + im] / cell_m * exag + 2.5f, zrow};
+    Vector2 sp = GetWorldToScreenEx(w, cam, vw, vh);
+    const char *txt = len_m >= 1000.0f ? TextFormat("%.0f km", len_m / 1000.0f) : TextFormat("%.0f m", len_m);
+    int tw = MeasureText(txt, 16);
+    int x = (int)(view.x + sp.x) - tw / 2, y = (int)sp.y - 8;
+    DrawRectangle(x - 5, y - 2, tw + 10, 20, (Color){16, 21, 28, 215});
+    DrawText(txt, x, y, 16, WHITE);
+}
+
 /* ===================== Programme principal ===================== */
 typedef struct { bool valid; int x, y; } Site;
 
 int main(void) {
-    /* --- calculs --- */
-    real_dem = load_real_dem("data/input/dem.f32");
-    if (real_dem) load_cell_size("data/input/dem.txt");
-    if (!real_dem) generate_synthetic_dem();
-    compute_slopes();
-    real_ephem = load_ephem("data/input/ephem.csv");
-    if (!real_ephem) generate_mock_ephem();
-    compute_visibility();
+    /* --- données initiales : zone préparée dans data/input (ou fictive) --- */
+    load_points();
+    load_site_data("data/input");
+    zone_valid = real_dem && load_zone_center("data/input/dem.txt", &zone_lat, &zone_lon);
 
     /* --- fenêtre --- */
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     InitWindow(1440, 860, "Selene - Planificateur de site lunaire");
-    SetWindowMinSize(900, 600);
+    SetWindowMinSize(900, 700);
     SetTargetFPS(60);
+    SetExitKey(KEY_NULL);                        /* Échap sert à annuler une saisie, il ne ferme plus la fenêtre */
 
     build_mesh();
     UploadMesh(&mesh, true);
@@ -397,10 +662,15 @@ int main(void) {
     int have_globe = load_globe();
     Material gmat = LoadMaterialDefault();
     if (have_globe) SetMaterialTexture(&gmat, MATERIAL_MAP_DIFFUSE, g_tex);
-    float zone_lat = -90.0f, zone_lon = 0.0f;
-    int zone_valid = real_dem && load_zone_center("data/input/dem.txt", &zone_lat, &zone_lon);
 
     int mode = have_globe ? 0 : 1;               /* 0 = globe, 1 = site */
+    int cur_site = -1;                           /* -1 = zone initiale, sinon indice dans pts[] */
+    int site_ready = 1;
+    int edit_idx = -1;                           /* point en cours de renommage (-1 = aucun) */
+    char edit_buf[32] = "";
+    Rectangle edit_rect = {0, 0, 0, 0};
+    int pending_load = -2, pending_prepare = -2;
+    int zlev = 1;                                /* niveau de taille de zone (index dans zfac) */
     float gyaw = 0.0f, gpitch = 0.3f, gdist = 260.0f, gexag = 15.0f, prev_gexag = -1.0f;
     int gpick_valid = 0;
     float gpick_lat = 0, gpick_lon = 0;
@@ -423,6 +693,55 @@ int main(void) {
     const char *layer_names[4] = {"Éclairement solaire", "Visibilité de la Terre", "Altitude", "Pente"};
 
     while (!WindowShouldClose()) {
+        /* --- tâches lourdes demandées à l'image précédente --- */
+        if (pending_prepare != -2) {
+            int idx = pending_prepare; pending_prepare = -2;
+            draw_message("Préparation du site (quelques secondes)...");
+            run_prepare(idx, zlev);
+            if (site_prepared(idx, zlev)) pending_load = idx;
+        }
+        if (pending_load != -2) {
+            int idx = pending_load; pending_load = -2;
+            cur_site = idx;
+            if (!(idx < 0 && zlev == 1) && !site_prepared(idx, zlev)) {
+                site_ready = 0;
+            } else {
+                draw_message("Calcul de l'éclairement et des communications...");
+                char dir[300];
+                site_dir(idx, zlev, dir, sizeof dir);
+                load_site_data(dir);
+                site_ready = 1;
+                site.valid = true; site.x = GW / 2; site.y = GH / 2;
+                prev_exag = -1.0f; prev_t = -1;
+            }
+        }
+        g_block = g_dd_open;
+        /* --- saisie du nouveau nom d'un point --- */
+        if (edit_idx >= 0 && mode != 0) { commit_name(edit_idx, edit_buf); edit_idx = -1; }
+        if (edit_idx >= 0) {
+            int ch;
+            while ((ch = GetCharPressed()) > 0) {
+                int len = (int)strlen(edit_buf);
+                if (ch >= 32 && ch != 127 && GetCodepointCount(edit_buf) < 16 && len < 27) {
+                    int sz = 0;
+                    const char *u = CodepointToUTF8(ch, &sz);
+                    memcpy(edit_buf + len, u, sz);
+                    edit_buf[len + sz] = 0;
+                }
+            }
+            if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE)) {
+                int len = (int)strlen(edit_buf);
+                while (len > 0 && ((unsigned char)edit_buf[len - 1] & 0xC0) == 0x80) len--;   /* caractère UTF-8 entier */
+                if (len > 0) edit_buf[len - 1] = 0;
+            }
+            if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_KP_ENTER)) { commit_name(edit_idx, edit_buf); edit_idx = -1; }
+            else if (IsKeyPressed(KEY_ESCAPE)) edit_idx = -1;
+            else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !CheckCollisionPointRec(GetMousePosition(), edit_rect)) {
+                commit_name(edit_idx, edit_buf);
+                edit_idx = -1;
+            }
+        }
+
         int sw = GetScreenWidth(), sh = GetScreenHeight();
         int gm = (mode == 0);
         Rectangle view = {PANEL_W, 0, (float)(sw - PANEL_W), (float)(gm ? sh : sh - TL_H)};
@@ -438,7 +757,8 @@ int main(void) {
         /* --- caméra orbitale (réglages propres à chaque vue) --- */
         float *cy = gm ? &gyaw : &yaw, *cp = gm ? &gpitch : &pitch, *cd = gm ? &gdist : &dist;
         float pmin = gm ? -1.5f : 0.12f, dmin = gm ? 130.0f : 25.0f, dmax = gm ? 600.0f : 400.0f;
-        bool in_view = CheckCollisionPointRec(m, view);
+        Rectangle zo = {view.x + view.width - 262, 6, 256, 30};      /* boutons de taille de zone (onglet Site) */
+        bool in_view = CheckCollisionPointRec(m, view) && (gm || !CheckCollisionPointRec(m, zo));
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { press = m; press_in_view = in_view; }
         if (press_in_view && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             Vector2 d = GetMouseDelta();
@@ -453,11 +773,13 @@ int main(void) {
         if (press_in_view && IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && Vector2Distance(m, press) < 4.0f) {
             Ray ray = GetScreenToWorldRayEx((Vector2){m.x - view.x, m.y - view.y}, cam, vw, vh);
             if (!gm) {
-                RayCollision hit = GetRayCollisionMesh(ray, mesh, MatrixIdentity());
-                if (hit.hit) {
-                    site.valid = true;
-                    site.x = (int)Clamp(roundf(hit.point.x + GW / 2.0f), 0, GW - 1);
-                    site.y = (int)Clamp(roundf(hit.point.z + GH / 2.0f), 0, GH - 1);
+                if (site_ready) {
+                    RayCollision hit = GetRayCollisionMesh(ray, mesh, MatrixIdentity());
+                    if (hit.hit) {
+                        site.valid = true;
+                        site.x = (int)Clamp(roundf(hit.point.x + GW / 2.0f), 0, GW - 1);
+                        site.y = (int)Clamp(roundf(hit.point.z + GH / 2.0f), 0, GH - 1);
+                    }
                 }
             } else {
                 RayCollision hit = GetRayCollisionSphere(ray, (Vector3){0, 0, 0}, GLOBE_R);
@@ -501,11 +823,15 @@ int main(void) {
         if (gm) {
             if (have_globe) {
                 DrawMesh(gmesh, gmat, MatrixIdentity());
-                if (zone_valid) DrawSphere(Vector3Scale(sph(zone_lat, zone_lon), GLOBE_R * 1.02f), 1.1f, C_SUN);
+                if (zone_valid) DrawSphere(Vector3Scale(sph(zone_lat, zone_lon), GLOBE_R * 1.02f), 0.8f, C_MUT);
+                for (int i = 0; i < npts; i++)
+                    DrawSphere(Vector3Scale(sph(pts[i].lat, pts[i].lon), GLOBE_R * 1.02f), i == cur_site ? 1.4f : 0.9f,
+                               i == cur_site ? C_SUN : C_EARTH);
                 if (gpick_valid) DrawSphere(Vector3Scale(sph(gpick_lat, gpick_lon), GLOBE_R * 1.02f), 0.9f, WHITE);
             }
-        } else {
+        } else if (site_ready) {
             DrawMesh(mesh, mat, MatrixIdentity());
+            draw_scale_3d(exag);
             if (site.valid) {
                 int k = site.y * GW + site.x;
                 DrawSphere((Vector3){site.x - GW / 2.0f, dem[k] / cell_m * exag + 1.2f, site.y - GH / 2.0f}, 1.0f, WHITE);
@@ -518,6 +844,28 @@ int main(void) {
         BeginDrawing();
         ClearBackground(C_BG);
         DrawTextureRec(rt.texture, (Rectangle){0, 0, (float)vw, -(float)vh}, (Vector2){view.x, view.y}, WHITE);
+        if (gm && have_globe) {
+            for (int i = 0; i < npts; i++) {
+                Vector3 wp = Vector3Scale(sph(pts[i].lat, pts[i].lon), GLOBE_R * 1.02f);
+                if (Vector3DotProduct(Vector3Normalize(wp), Vector3Normalize(cam.position)) > 0.15f) {
+                    Vector2 sp = GetWorldToScreenEx(wp, cam, vw, vh);
+                    DrawText(pts[i].name, (int)(view.x + sp.x) + 8, (int)sp.y - 8, 14, WHITE);
+                }
+            }
+            draw_compass(cam, view, vw, vh);
+        }
+        if (!gm && site_ready) draw_scale_label(cam, view, vw, vh, exag);
+        if (!gm && !site_ready) {
+            DrawText("Site non préparé", (int)view.x + vw / 2 - 70, vh / 2 - 10, 20, C_MUT);
+        }
+        if (!gm) {
+            DrawRectangleRec(zo, (Color){16, 21, 28, 215});
+            bool can_zoom = cur_site >= 0 || zone_valid;
+            const char *zl = site_ready ? TextFormat("Zone : %.1f km", GW * cell_m / 1000.0f) : TextFormat("Zone : x%.1f", zfac[zlev]);
+            DrawText(zl, (int)(zo.x + zo.width / 2) - MeasureText(zl, 16) / 2, (int)zo.y + 7, 16, can_zoom ? C_TXT : C_MUT);
+            if (ui_button((Rectangle){zo.x + 4, zo.y + 3, 34, 24}, "-", false) && can_zoom && zlev > 0) { zlev--; pending_load = cur_site; }
+            if (ui_button((Rectangle){zo.x + zo.width - 38, zo.y + 3, 34, 24}, "+", false) && can_zoom && zlev < 4) { zlev++; pending_load = cur_site; }
+        }
         DrawText(gm ? "Glisser = tourner  |  molette = zoom  |  clic = marquer un point"
                     : "Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site",
                  (int)view.x + 12, 10, 14, C_MUT);
@@ -527,111 +875,199 @@ int main(void) {
         DrawRectangle(PANEL_W - 1, 0, 1, sh, C_LINE);
         float y = 16;
         DrawText("Selene", 18, (int)y, 26, C_TXT); y += 32;
-        DrawText(TextFormat("Zone %.1f km  |  %.0f m par cellule", GW * cell_m / 1000.0f, cell_m), 18, (int)y, 14, C_MUT); y += 30;
+        if (gm) { DrawText("Lune entière  |  rayon 1737 km", 18, (int)y, 14, C_MUT); y += 26; }
+        else if (site_ready) {
+            float side = GW * cell_m / 1000.0f;
+            DrawText(TextFormat("Carré de %.1f x %.1f km (%.0f km²)", side, side, side * side), 18, (int)y, 14, C_MUT); y += 18;
+            DrawText(TextFormat("Cellule : %.0f m  |  relief x%.1f", cell_m, exag), 18, (int)y, 14, C_MUT); y += 24;
+        } else y += 26;
 
         if (ui_button((Rectangle){18, y, 134, 28}, "Globe", gm) && have_globe) mode = 0;
         if (ui_button((Rectangle){158, y, 134, 28}, "Site", !gm)) mode = 1;
-        y += 42;
+        y += 40;
 
         if (gm) {
             if (!have_globe) {
                 DrawText("Globe indisponible.", 18, (int)y, 16, C_BAD);
                 DrawText("Lancez tools/prepare_globe.py", 18, (int)y + 22, 14, C_MUT);
             } else {
-                ui_slider(18, y, 274, "Exagération du relief", &gexag, 1, 40, TextFormat("x%.0f", gexag)); y += 58;
-                DrawRectangle(18, (int)y, 274, 1, C_LINE); y += 12;
-                if (zone_valid) {
-                    DrawText(TextFormat("Zone préparée : %.1f, %.1f", zone_lat, zone_lon), 18, (int)y, 14, C_SUN); y += 20;
-                    DrawText("(point orange, bouton Site pour l'ouvrir)", 18, (int)y, 14, C_MUT); y += 30;
-                }
+                ui_slider(18, y, 274, "Exagération du relief", &gexag, 1, 40, TextFormat("x%.0f", gexag)); y += 50;
+                if (ui_button((Rectangle){18, y, 134, 26}, "Pôle Sud", false)) { gpitch = -1.45f; gyaw = 0.0f; }
+                if (ui_button((Rectangle){158, y, 134, 26}, "Pôle Nord", false)) { gpitch = 1.45f; gyaw = 0.0f; }
+                y += 36;
+                DrawRectangle(18, (int)y, 274, 1, C_LINE); y += 10;
                 if (gpick_valid) {
                     int gi = (int)Clamp(roundf((gpick_lon + 180.0f) / 360.0f * GLON), 0, GLON);
                     int gj = (int)Clamp(roundf((90.0f - gpick_lat) / 180.0f * GLAT), 0, GLAT);
-                    DrawText("Point marqué", 18, (int)y, 18, C_TXT); y += 26;
-                    DrawText(TextFormat("Latitude : %.2f°", gpick_lat), 18, (int)y, 16, C_TXT); y += 22;
-                    DrawText(TextFormat("Longitude : %.2f°", gpick_lon), 18, (int)y, 16, C_TXT); y += 22;
-                    DrawText(TextFormat("Altitude : %.0f m", g_h[gj * (GLON + 1) + gi]), 18, (int)y, 16, C_TXT); y += 22;
+                    DrawText(TextFormat("Point marqué : %.2f, %.2f", gpick_lat, gpick_lon), 18, (int)y, 16, C_TXT); y += 22;
+                    DrawText(TextFormat("Altitude : %.0f m", g_h[gj * (GLON + 1) + gi]), 18, (int)y, 16, C_MUT); y += 26;
+                    if (ui_button((Rectangle){18, y, 274, 28}, "Enregistrer ce point", false)) {
+                        if (npts < MAX_PTS) {
+                            snprintf(pts[npts].id, sizeof pts[npts].id, "P%d", next_id++);
+                            snprintf(pts[npts].name, sizeof pts[npts].name, "%s", pts[npts].id);
+                            pts[npts].lat = gpick_lat; pts[npts].lon = gpick_lon;
+                            npts++;
+                            save_points();
+                            status_msg[0] = 0;
+                        } else snprintf(status_msg, sizeof status_msg, "Maximum de %d points atteint", MAX_PTS);
+                    }
+                    y += 38;
                 } else {
-                    DrawText("Cliquez sur la Lune pour marquer un point.", 18, (int)y, 14, C_MUT);
+                    DrawText("Cliquez sur la Lune pour marquer un point.", 18, (int)y, 14, C_MUT); y += 28;
                 }
+                DrawText("Points enregistrés", 18, (int)y, 16, C_TXT); y += 24;
+                if (npts == 0) DrawText("Aucun pour l'instant.", 18, (int)y, 14, C_MUT);
+                else DrawText("(cliquez sur un nom pour le modifier)", 18, sh - 70, 12, C_MUT);
+                int del = -1;
+                for (int i = 0; i < npts; i++) {
+                    Rectangle nr = {18, y, 150, 24};
+                    if (edit_idx == i) {                                  /* champ de saisie, comme un renommage de fichier */
+                        edit_rect = nr;
+                        DrawRectangleRec(nr, C_BG);
+                        DrawRectangleLinesEx(nr, 1, C_SUN);
+                        DrawText(TextFormat("%s%s", edit_buf, ((int)(GetTime() * 2.0) % 2) ? "|" : ""), 24, (int)y + 5, 14, C_TXT);
+                    } else {
+                        bool hot = !g_block && CheckCollisionPointRec(m, nr);
+                        int nw = MeasureText(pts[i].name, 14);
+                        DrawText(pts[i].name, 18, (int)y + 5, 14, i == cur_site ? C_SUN : C_TXT);
+                        if (hot) DrawRectangle(18, (int)y + 21, nw, 1, C_MUT);
+                        const char *co = TextFormat("%.1f, %.1f", pts[i].lat, pts[i].lon);
+                        if (18 + nw + 8 + MeasureText(co, 12) < 168) DrawText(co, 18 + nw + 8, (int)y + 7, 12, C_MUT);
+                        if (hot && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && edit_idx < 0) {
+                            edit_idx = i;
+                            snprintf(edit_buf, sizeof edit_buf, "%s", pts[i].name);
+                        }
+                    }
+                    DrawCircle(176, (int)y + 12, 4, site_prepared(i, 1) ? C_OK : C_LINE);
+                    if (ui_button((Rectangle){190, y, 56, 24}, "Site", false)) { pending_load = i; zlev = 1; mode = 1; }
+                    if (ui_button((Rectangle){252, y, 40, 24}, "X", false)) del = i;
+                    y += 28;
+                }
+                if (del >= 0) {
+                    edit_idx = -1;
+                    for (int i = del; i < npts - 1; i++) pts[i] = pts[i + 1];
+                    npts--;
+                    save_points();
+                    if (cur_site == del) { pending_load = -1; zlev = 1; }
+                    else if (cur_site > del) cur_site--;
+                }
+                if (zone_valid) {
+                    y += 8;
+                    DrawText(TextFormat("Zone initiale : %.1f, %.1f (gris)", zone_lat, zone_lon), 18, (int)y, 14, C_MUT);
+                }
+                if (status_msg[0]) DrawText(TextSubtext(status_msg, 0, 40), 18, sh - 50, 14, C_BAD);
                 DrawText("Relief LOLA et couleurs LRO (NASA)", 18, sh - 28, 14, C_MUT);
             }
         } else {
-            DrawText("Couche affichée", 18, (int)y, 16, C_TXT); y += 24;
-            for (int i = 0; i < 4; i++) {
-                if (ui_button((Rectangle){18, y, 274, 26}, layer_names[i], layer == i)) layer = i;
-                y += 30;
+            Rectangle ddr = {18, y, 274, 28};
+            y += 36;
+            if (cur_site >= 0) {
+                DrawText(TextFormat("lat %.3f   lon %.3f", pts[cur_site].lat, pts[cur_site].lon), 18, (int)y, 14, C_MUT);
+                y += 22;
             }
-            y += 6;
-            if (ui_button((Rectangle){18, y, 274, 26}, eng ? "Mode ingénieur : activé" : "Mode ingénieur : désactivé", eng)) eng = !eng;
-            y += 40;
-
-            DrawText(TextFormat("Date : J+%.1f", t * STEP_H / 24.0f), 18, (int)y, 16, C_TXT);
-            if (ui_button((Rectangle){190, y - 4, 102, 26}, playing ? "Pause" : "Lecture", playing)) playing = !playing;
-            y += 28;
-            ui_slider(18, y, 274, "", &time_f, 0, N_STEPS - 1, ""); y += 48;
-            ui_slider(18, y, 274, "Pente maximale admise", &smax, 2, 30, TextFormat("%.0f°", smax)); y += 54;
-            ui_slider(18, y, 274, "Exagération verticale", &exag, 1, 6, TextFormat("x%.1f", exag)); y += 58;
-
-            /* fiche du site */
-            DrawRectangle(18, (int)y, 274, 1, C_LINE); y += 12;
-            if (!site.valid) {
-                DrawText("Aucun site sélectionné.", 18, (int)y, 16, C_MUT);
-                DrawText("Cliquez sur le terrain.", 18, (int)y + 22, 16, C_MUT);
-            } else {
-                int k = site.y * GW + site.x;
-                float ps = pct_visible(illum, k), pe = pct_visible(earthv, k);
-                DrawText(TextFormat("Soleil visible : %.0f %%", ps), 18, (int)y, 18, C_SUN); y += 26;
-                DrawText(TextFormat("Terre visible : %.0f %%", pe), 18, (int)y, 18, C_EARTH); y += 26;
-                DrawText(TextFormat("Plus longue nuit : %.1f j", longest_run_days(illum, k, 0)), 18, (int)y, 16, C_TXT); y += 22;
-                DrawText(TextFormat("Plus longue coupure radio : %.1f j", longest_run_days(earthv, k, 0)), 18, (int)y, 16, C_TXT); y += 26;
-                if (eng) {
-                    DrawText(TextFormat("Cellule (x, y) : %d, %d", site.x, site.y), 18, (int)y, 14, C_MUT); y += 20;
-                    DrawText(TextFormat("Altitude : %.0f m   Pente : %.1f°", dem[k], slope_deg[k]), 18, (int)y, 14, C_MUT); y += 20;
-                    DrawText(TextFormat("Soleil az/él : %.0f° / %.1f°", sun_az[t], sun_el[t]), 18, (int)y, 14, C_MUT); y += 20;
-                    DrawText(TextFormat("Terre az/él : %.0f° / %.1f°", earth_az[t], earth_el[t]), 18, (int)y, 14, C_MUT); y += 26;
+            if (!site_ready) {
+                float plat = cur_site >= 0 ? pts[cur_site].lat : zone_lat;
+                DrawText(TextFormat("Zone x%.1f non préparée.", zfac[zlev]), 18, (int)y, 16, C_TXT); y += 28;
+                if (cur_site >= 0 || zone_valid) {
+                    if (ui_button((Rectangle){18, y, 274, 30}, "Préparer cette zone", false)) pending_prepare = cur_site;
+                    y += 38;
+                    DrawText("Hors ligne : nécessite Python et un fichier LDEM.", 18, (int)y, 14, C_MUT); y += 20;
+                    DrawText(plat <= -81.0f ? "DEM : LOLA polaire (80 m)" : "DEM : mondial (ldem_64)", 18, (int)y, 14, C_MUT); y += 24;
+                } else {
+                    DrawText("Zone initiale : taille non modifiable.", 18, (int)y, 14, C_BAD); y += 24;
                 }
-                bool ok = slope_deg[k] <= smax;
-                DrawRectangle(18, (int)y, 274, 34, ok ? (Color){29, 58, 44, 255} : (Color){65, 35, 31, 255});
-                DrawText(ok ? "Pente compatible avec un atterrissage" : TextFormat("Pente de %.0f° : trop forte", slope_deg[k]),
-                         26, (int)y + 9, 15, ok ? C_OK : C_BAD);
-                y += 46;
-            }
-            if (!real_dem || !real_ephem)
-                DrawText("Données FICTIVES (terrain et/ou éphémérides)", 18, sh - 28, 14, C_BAD);
-
-            /* timeline Soleil / Terre */
-            DrawRectangleRec(tl, C_PANEL);
-            DrawRectangle((int)tl.x, (int)tl.y, (int)tl.width, 1, C_LINE);
-            float L = tl.x + 70, plotW = tl.width - 70 - 14, laneH = (tl.height - 16 - 30 - 10) / 2;
-            float ly1 = tl.y + 16, ly2 = ly1 + laneH + 10;
-            DrawRectangle((int)L, (int)ly1, (int)plotW, (int)laneH, C_SHADE);
-            DrawRectangle((int)L, (int)ly2, (int)plotW, (int)laneH, C_SHADE);
-            DrawText("Soleil", (int)tl.x + 12, (int)(ly1 + laneH / 2 - 8), 16, C_MUT);
-            DrawText("Terre", (int)tl.x + 12, (int)(ly2 + laneH / 2 - 8), 16, C_MUT);
-            if (site.valid) {
-                int k = site.y * GW + site.x;
-                for (int i = 0; i < N_STEPS; i++) {
-                    float x0 = L + plotW * i / N_STEPS, w = plotW / N_STEPS + 1.0f;
-                    if (illum[(size_t)i * NCELL + k]) DrawRectangleRec((Rectangle){x0, ly1, w, laneH}, C_SUN);
-                    if (earthv[(size_t)i * NCELL + k]) DrawRectangleRec((Rectangle){x0, ly2, w, laneH}, C_EARTH);
+                if (status_msg[0]) {
+                    DrawText(TextSubtext(status_msg, 0, 40), 18, (int)y, 14, C_BAD); y += 18;
+                    if (strlen(status_msg) > 40) DrawText(TextSubtext(status_msg, 40, 40), 18, (int)y, 14, C_BAD);
                 }
             } else {
-                DrawText("Choisissez un site pour afficher ses fenêtres de lumière et de communication",
-                         (int)L + 20, (int)(tl.y + tl.height / 2 - 16), 16, C_MUT);
+                DrawText("Couche affichée", 18, (int)y, 16, C_TXT); y += 22;
+                for (int i = 0; i < 4; i++) {
+                    if (ui_button((Rectangle){18, y, 274, 22}, layer_names[i], layer == i)) layer = i;
+                    y += 26;
+                }
+                y += 4;
+                if (ui_button((Rectangle){18, y, 274, 24}, eng ? "Mode ingénieur : activé" : "Mode ingénieur : désactivé", eng)) eng = !eng;
+                y += 34;
+
+                DrawText(TextFormat("Date : J+%.1f", t * STEP_H / 24.0f), 18, (int)y, 16, C_TXT);
+                if (ui_button((Rectangle){190, y - 4, 102, 26}, playing ? "Pause" : "Lecture", playing)) playing = !playing;
+                y += 26;
+                ui_slider(18, y, 274, "", &time_f, 0, N_STEPS - 1, ""); y += 42;
+                ui_slider(18, y, 274, "Pente maximale admise", &smax, 2, 30, TextFormat("%.0f°", smax)); y += 50;
+                ui_slider(18, y, 274, "Exagération verticale", &exag, 1, 6, TextFormat("x%.1f", exag)); y += 54;
+
+                /* fiche du site */
+                DrawRectangle(18, (int)y, 274, 1, C_LINE); y += 10;
+                if (!site.valid) {
+                    DrawText("Aucun site sélectionné.", 18, (int)y, 16, C_MUT);
+                    DrawText("Cliquez sur le terrain.", 18, (int)y + 22, 16, C_MUT);
+                } else {
+                    int k = site.y * GW + site.x;
+                    float ps = pct_visible(illum, k), pe = pct_visible(earthv, k);
+                    DrawText(TextFormat("Soleil visible : %.0f %%", ps), 18, (int)y, 18, C_SUN); y += 26;
+                    DrawText(TextFormat("Terre visible : %.0f %%", pe), 18, (int)y, 18, C_EARTH); y += 26;
+                    DrawText(TextFormat("Plus longue nuit : %.1f j", longest_run_days(illum, k, 0)), 18, (int)y, 16, C_TXT); y += 22;
+                    DrawText(TextFormat("Plus longue coupure radio : %.1f j", longest_run_days(earthv, k, 0)), 18, (int)y, 16, C_TXT); y += 26;
+                    if (eng) {
+                        DrawText(TextFormat("Cellule (x, y) : %d, %d", site.x, site.y), 18, (int)y, 14, C_MUT); y += 20;
+                        DrawText(TextFormat("Altitude : %.0f m   Pente : %.1f°", dem[k], slope_deg[k]), 18, (int)y, 14, C_MUT); y += 20;
+                        DrawText(TextFormat("Soleil az/él : %.0f° / %.1f°", sun_az[t], sun_el[t]), 18, (int)y, 14, C_MUT); y += 20;
+                        DrawText(TextFormat("Terre az/él : %.0f° / %.1f°", earth_az[t], earth_el[t]), 18, (int)y, 14, C_MUT); y += 26;
+                    }
+                    bool ok = slope_deg[k] <= smax;
+                    DrawRectangle(18, (int)y, 274, 34, ok ? (Color){29, 58, 44, 255} : (Color){65, 35, 31, 255});
+                    DrawText(ok ? "Pente compatible avec un atterrissage" : TextFormat("Pente de %.0f° : trop forte", slope_deg[k]),
+                             26, (int)y + 9, 15, ok ? C_OK : C_BAD);
+                    y += 46;
+                }
+                if (!real_dem || !real_ephem)
+                    DrawText("Données FICTIVES (terrain et/ou éphémérides)", 18, sh - 28, 14, C_BAD);
+                else if (!have_frame && (cur_site >= 0 || zone_valid)) {
+                    DrawText("Géométrie approx.", 18, sh - 28, 14, C_MUT);
+                    if (ui_button((Rectangle){150, sh - 34, 142, 24}, "Re-préparer", false)) pending_prepare = cur_site;
+                }
+
+                /* timeline Soleil / Terre */
+                DrawRectangleRec(tl, C_PANEL);
+                DrawRectangle((int)tl.x, (int)tl.y, (int)tl.width, 1, C_LINE);
+                float L = tl.x + 70, plotW = tl.width - 70 - 14, laneH = (tl.height - 16 - 30 - 10) / 2;
+                float ly1 = tl.y + 16, ly2 = ly1 + laneH + 10;
+                DrawRectangle((int)L, (int)ly1, (int)plotW, (int)laneH, C_SHADE);
+                DrawRectangle((int)L, (int)ly2, (int)plotW, (int)laneH, C_SHADE);
+                DrawText("Soleil", (int)tl.x + 12, (int)(ly1 + laneH / 2 - 8), 16, C_MUT);
+                DrawText("Terre", (int)tl.x + 12, (int)(ly2 + laneH / 2 - 8), 16, C_MUT);
+                if (site.valid) {
+                    int k = site.y * GW + site.x;
+                    for (int i = 0; i < N_STEPS; i++) {
+                        float x0 = L + plotW * i / N_STEPS, w = plotW / N_STEPS + 1.0f;
+                        if (illum[(size_t)i * NCELL + k]) DrawRectangleRec((Rectangle){x0, ly1, w, laneH}, C_SUN);
+                        if (earthv[(size_t)i * NCELL + k]) DrawRectangleRec((Rectangle){x0, ly2, w, laneH}, C_EARTH);
+                    }
+                } else {
+                    DrawText("Choisissez un site pour afficher ses fenêtres de lumière et de communication",
+                             (int)L + 20, (int)(tl.y + tl.height / 2 - 16), 16, C_MUT);
+                }
+                float days = N_STEPS * STEP_H / 24.0f;
+                for (int d = 0; d <= (int)days; d += 5) {
+                    float x = L + plotW * d / days;
+                    DrawRectangle((int)x, (int)(tl.y + tl.height - 30), 1, 5, C_MUT);
+                    DrawText(TextFormat("J+%d", d), (int)x - 12, (int)(tl.y + tl.height - 22), 14, C_MUT);
+                }
+                float cx = L + plotW * (t + 0.5f) / N_STEPS;
+                DrawRectangle((int)cx - 1, (int)tl.y + 10, 2, (int)tl.height - 36, C_TXT);
+                if (CheckCollisionPointRec(m, tl) && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && g_active == NULL) {
+                    float f = (m.x - L) / plotW;
+                    if (f >= 0 && f <= 1) { time_f = f * N_STEPS; if (time_f > N_STEPS - 1) time_f = N_STEPS - 1; }
+                }
             }
-            float days = N_STEPS * STEP_H / 24.0f;
-            for (int d = 0; d <= (int)days; d += 5) {
-                float x = L + plotW * d / days;
-                DrawRectangle((int)x, (int)(tl.y + tl.height - 30), 1, 5, C_MUT);
-                DrawText(TextFormat("J+%d", d), (int)x - 12, (int)(tl.y + tl.height - 22), 14, C_MUT);
-            }
-            float cx = L + plotW * (t + 0.5f) / N_STEPS;
-            DrawRectangle((int)cx - 1, (int)tl.y + 10, 2, (int)tl.height - 36, C_TXT);
-            if (CheckCollisionPointRec(m, tl) && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && g_active == NULL) {
-                float f = (m.x - L) / plotW;
-                if (f >= 0 && f <= 1) { time_f = f * N_STEPS; if (time_f > N_STEPS - 1) time_f = N_STEPS - 1; }
-            }
+
+            /* menu déroulant des points : dessiné en dernier pour passer par-dessus */
+            const char *dd_items[MAX_PTS + 1];
+            dd_items[0] = "Zone initiale";
+            for (int i = 0; i < npts; i++) dd_items[i + 1] = pts[i].name;
+            int chosen = ui_dropdown(ddr, dd_items, npts + 1, cur_site + 1);
+            if (chosen >= 0 && chosen - 1 != cur_site) { pending_load = chosen - 1; zlev = 1; }
         }
         EndDrawing();
     }

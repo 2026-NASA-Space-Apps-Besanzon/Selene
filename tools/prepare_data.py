@@ -37,6 +37,25 @@ LL_PROJ = f"+proj=longlat +R={MOON_R} +no_defs"
 HORIZONS = "https://ssd.jpl.nasa.gov/api/horizons.api"
 
 
+# ------------------------------------------------------------------ repère local de chaque cellule
+def _vec(lat_deg, lon_deg):
+    la, lo = np.radians(lat_deg), np.radians(lon_deg)
+    return np.stack([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)], axis=-1)
+
+
+def _tangent(p0, p1):
+    d = p1 - p0
+    d = d - np.sum(d * p0, axis=-1, keepdims=True) * p0
+    return d / np.maximum(np.linalg.norm(d, axis=-1, keepdims=True), 1e-12)
+
+
+def write_frame(n, ex, ey):
+    """frame.f32 : pour chaque cellule (ligne par ligne), 9 float32 = verticale locale, 'droite de l'image', 'haut de l'image',
+    exprimées dans le repère lunaire. Le moteur C en déduit la hauteur et la direction du Soleil et de la Terre cellule par cellule."""
+    os.makedirs(OUT, exist_ok=True)
+    np.concatenate([n, ex, ey], axis=2).astype("<f4").tofile(os.path.join(OUT, "frame.f32"))
+
+
 # ------------------------------------------------------------------ DEM
 def prepare_dem(path, lat, lon, cell_m):
     import rasterio
@@ -67,6 +86,21 @@ def prepare_dem(path, lat, lon, cell_m):
         fill = float(arr.mean()) if nodata < arr.size else 0.0
         arr = np.ma.filled(arr.astype("float64"), fill).astype("<f4")
         real_cell = wpx * res / GRID
+        # repère local de chaque cellule (centres des cellules de sortie)
+        cc = c0 + (np.arange(GRID) + 0.5) * wpx / GRID
+        rr = r0 + (np.arange(GRID) + 0.5) * wpx / GRID
+        CC, RR = np.meshgrid(cc, rr)
+        tr = ds.transform
+        X = (tr.c + tr.a * CC).ravel()
+        Y = (tr.f + tr.e * RR).ravel()
+        dlt = 100.0                                                   # pas (m) pour les axes de l'image
+        def to_vec(xs, ys):
+            lons, lats = transform(crs, ll, xs.tolist(), ys.tolist())
+            return _vec(np.array(lats), np.array(lons)).reshape(GRID, GRID, 3)
+        n0 = to_vec(X, Y)
+        ex = _tangent(n0, to_vec(X + dlt, Y))                          # vers la droite de l'image (+x projeté)
+        ey = _tangent(n0, to_vec(X, Y + dlt))                          # vers le haut de l'image (+y projeté)
+    write_frame(n0, ex, ey)
 
     os.makedirs(OUT, exist_ok=True)
     arr.tofile(os.path.join(OUT, "dem.f32"))
@@ -80,7 +114,7 @@ def prepare_dem(path, lat, lon, cell_m):
     return theta
 
 
-def prepare_dem_global(path, lat, lon, cell_m):
+def prepare_dem_global(path, lat, lon, cell_m, zoom=1.0):
     """Zone locale prise dans un DEM mondial (projection cylindrique, ex. ldem_64 du CGI Moon Kit).
     La grille est orientée nord en haut : aucune rotation des azimuts (theta = 0)."""
     import rasterio
@@ -91,7 +125,7 @@ def prepare_dem_global(path, lat, lon, cell_m):
         deg = 360.0 / W                                       # degrés par pixel
         native = math.radians(deg) * MOON_R                   # m / pixel à l'équateur
         if cell_m is None:
-            cell_m = round(native)
+            cell_m = round(native * zoom)
         is_float = ds.dtypes[0].startswith("float")
         half = GRID * cell_m / 2.0
         dlat = math.degrees(half / MOON_R)
@@ -101,6 +135,8 @@ def prepare_dem_global(path, lat, lon, cell_m):
         c0 = int(math.floor((lon - dlon + 180) / deg)) - 2
         c1 = int(math.ceil((lon + dlon + 180) / deg)) + 2
         cols = np.arange(c0, c1) % W                          # la longitude boucle à 180 deg
+        if (r1 - r0) * len(cols) > 120_000_000:
+            sys.exit("[!] Zone trop grande pour ce site (trop proche d'un pôle) : choisissez une zone plus petite.")
         block = np.empty((r1 - r0, len(cols)), dtype="float64")
         i = 0
         while i < len(cols):                                  # lecture par morceaux contigus
@@ -124,6 +160,12 @@ def prepare_dem_global(path, lat, lon, cell_m):
     wr, wc = fr - ri, fc - ci
     arr = ((1 - wr) * (1 - wc) * block[ri, ci] + (1 - wr) * wc * block[ri, ci + 1]
            + wr * (1 - wc) * block[ri + 1, ci] + wr * wc * block[ri + 1, ci + 1]).astype("<f4")
+
+    n0 = _vec(lat_g, lon_g)
+    lo_r, la_r = np.radians(lon_g), np.radians(lat_g)
+    ex = np.stack([-np.sin(lo_r), np.cos(lo_r), np.zeros_like(lo_r)], axis=-1)
+    ey = np.stack([-np.sin(la_r) * np.cos(lo_r), -np.sin(la_r) * np.sin(lo_r), np.cos(la_r)], axis=-1)
+    write_frame(n0, ex, ey)
 
     os.makedirs(OUT, exist_ok=True)
     arr.tofile(os.path.join(OUT, "dem.f32"))
@@ -198,6 +240,15 @@ def prepare_ephem(lat, lon, start, theta, online=False):
             sa = (sun[i][0] + theta) % 360.0
             ea = (earth[i][0] + theta) % 360.0
             f.write(f"{i * STEP_MIN / 60:.1f},{sa:.3f},{sun[i][1]:.3f},{ea:.3f},{earth[i][1]:.3f}\n")
+    vec_path = os.path.join(OUT, "ephem_vec.csv")
+    if online:
+        if os.path.exists(vec_path):
+            os.remove(vec_path)                      # incohérent avec Horizons : le moteur utilisera ephem.csv
+    else:
+        with open(vec_path, "w", encoding="utf-8") as f:
+            f.write("# t_h, direction du Soleil (unitaire), vecteur Terre (km), repere lunaire (x lon0, y est, z nord)\n")
+            for i, (sv, ev) in enumerate(ephem_offline.vectors(start, N_STEPS, STEP_MIN)):
+                f.write(f"{i * STEP_MIN / 60:.1f},{sv[0]:.7f},{sv[1]:.7f},{sv[2]:.7f},{ev[0]:.2f},{ev[1]:.2f},{ev[2]:.2f}\n")
     print(f"ephem.csv écrit ({N_STEPS} lignes). Soleil : élévation {min(r[1] for r in sun):.2f} à {max(r[1] for r in sun):.2f} deg ; "
           f"Terre : {min(r[1] for r in earth):.2f} à {max(r[1] for r in earth):.2f} deg")
 
@@ -219,6 +270,7 @@ def main():
     ap.add_argument("--out", default=os.path.join("data", "input"), help="dossier de sortie (un dossier par site)")
     ap.add_argument("--lat", type=float, default=-89.9, help="latitude du centre de la zone (deg, négatif au sud)")
     ap.add_argument("--lon", type=float, default=0.0, help="longitude Est du centre (deg)")
+    ap.add_argument("--zoom", type=float, default=1.0, help="multiplicateur de la taille de zone (2 = côté doublé)")
     ap.add_argument("--cell", type=float, default=None, help="taille de cellule en m (zone = 128 x cell). Défaut : 200 (polaire) ou résolution native (mondial)")
     ap.add_argument("--start", default=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d"), help="début des éphémérides (UTC, AAAA-MM-JJ)")
     ap.add_argument("--no-ephem", action="store_true", help="ne pas produire ephem.csv")
@@ -235,11 +287,11 @@ def main():
         polar = a.dem or find_first(["LDEM_80S*.tif*", "ldem_80s*.tif*"])
         glob_dem = a.global_dem or find_first(["ldem_64*.tif*", "LDEM_64*.tif*", "ldem_16*.tif*", "LDEM_16*.tif*"])
         if a.lat <= -81.0 and polar:
-            theta = prepare_dem(polar, a.lat, a.lon, a.cell or 200.0)
+            theta = prepare_dem(polar, a.lat, a.lon, (a.cell or 200.0) * a.zoom)
         elif glob_dem:
             if a.lat <= -81.0:
                 print("[!] DEM polaire introuvable : utilisation du DEM mondial (moins précis).")
-            theta = prepare_dem_global(glob_dem, a.lat, a.lon, a.cell)
+            theta = prepare_dem_global(glob_dem, a.lat, a.lon, a.cell * a.zoom if a.cell else None, a.zoom)
         else:
             sys.exit("[!] Aucun DEM trouvé : placez LDEM_80S_80MPP_ADJ.tiff (pôle Sud) et/ou ldem_64.tif (mondial) dans le dossier du projet.")
     elif theta is None:
