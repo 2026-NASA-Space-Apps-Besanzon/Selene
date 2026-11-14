@@ -80,6 +80,62 @@ def prepare_dem(path, lat, lon, cell_m):
     return theta
 
 
+def prepare_dem_global(path, lat, lon, cell_m):
+    """Zone locale prise dans un DEM mondial (projection cylindrique, ex. ldem_64 du CGI Moon Kit).
+    La grille est orientée nord en haut : aucune rotation des azimuts (theta = 0)."""
+    import rasterio
+    from rasterio.windows import Window
+
+    with rasterio.open(path) as ds:
+        W, H = ds.width, ds.height
+        deg = 360.0 / W                                       # degrés par pixel
+        native = math.radians(deg) * MOON_R                   # m / pixel à l'équateur
+        if cell_m is None:
+            cell_m = round(native)
+        is_float = ds.dtypes[0].startswith("float")
+        half = GRID * cell_m / 2.0
+        dlat = math.degrees(half / MOON_R)
+        dlon = math.degrees(half / (MOON_R * max(math.cos(math.radians(lat)), 0.05)))
+        r0 = max(int(math.floor((90 - (lat + dlat)) / deg)) - 2, 0)
+        r1 = min(int(math.ceil((90 - (lat - dlat)) / deg)) + 2, H)
+        c0 = int(math.floor((lon - dlon + 180) / deg)) - 2
+        c1 = int(math.ceil((lon + dlon + 180) / deg)) + 2
+        cols = np.arange(c0, c1) % W                          # la longitude boucle à 180 deg
+        block = np.empty((r1 - r0, len(cols)), dtype="float64")
+        i = 0
+        while i < len(cols):                                  # lecture par morceaux contigus
+            j = i
+            while j + 1 < len(cols) and cols[j + 1] == cols[j] + 1:
+                j += 1
+            block[:, i:j + 1] = ds.read(1, window=Window(int(cols[i]), r0, j - i + 1, r1 - r0)).astype("float64")
+            i = j + 1
+    block = block * 1000.0 if is_float else (block - 20000.0) * 0.5   # -> mètres
+
+    # grille locale : x vers l'est, y vers le nord, centrée sur le site
+    idx = np.arange(GRID)
+    xs = (idx - (GRID - 1) / 2.0) * cell_m
+    ys = ((GRID - 1) / 2.0 - idx) * cell_m
+    X, Y = np.meshgrid(xs, ys)
+    lat_g = np.clip(lat + np.degrees(Y / MOON_R), -90.0, 90.0)
+    lon_g = lon + np.degrees(X / (MOON_R * np.maximum(np.cos(np.radians(lat_g)), 0.05)))
+    fr = np.clip((90.0 - lat_g) / deg - 0.5 - r0, 0, block.shape[0] - 1.001)
+    fc = np.clip((lon_g + 180.0) / deg - 0.5 - c0, 0, block.shape[1] - 1.001)
+    ri, ci = fr.astype(int), fc.astype(int)
+    wr, wc = fr - ri, fc - ci
+    arr = ((1 - wr) * (1 - wc) * block[ri, ci] + (1 - wr) * wc * block[ri, ci + 1]
+           + wr * (1 - wc) * block[ri + 1, ci] + wr * wc * block[ri + 1, ci + 1]).astype("<f4")
+
+    os.makedirs(OUT, exist_ok=True)
+    arr.tofile(os.path.join(OUT, "dem.f32"))
+    with open(os.path.join(OUT, "dem.txt"), "w", encoding="utf-8") as f:
+        f.write(f"{cell_m:.3f}\n")
+        f.write(f"# source={os.path.basename(path)} (mondial) centre lat={lat} lon={lon} fenetre={GRID * cell_m / 1000:.1f} km\n")
+        f.write("# rotation nord local / haut image = 0.00 deg\n")
+    print(f"DEM mondial : {GRID}x{GRID}, {cell_m:.0f} m/cellule (résolution native ~{native:.0f} m), "
+          f"fenêtre {GRID * cell_m / 1000:.1f} km, altitudes {arr.min():.0f} à {arr.max():.0f} m")
+    return 0.0
+
+
 # ------------------------------------------------------------------ Horizons
 def parse_horizons(text):
     """Renvoie [(azimut, élévation), ...] depuis une réponse Horizons (CSV, quantité 4)."""
@@ -119,13 +175,24 @@ def fetch_azel(body, lat, lon, start):
     return rows[:N_STEPS]
 
 
-def prepare_ephem(lat, lon, start, theta):
-    print(f"Horizons : Soleil et Terre vus depuis lat={lat}, lon={lon}, début {start:%Y-%m-%d %H:%M} UTC ...")
-    sun = fetch_azel("10", lat, lon, start)
-    earth = fetch_azel("399", lat, lon, start)
+def prepare_ephem(lat, lon, start, theta, online=False):
+    """Soleil et Terre vus depuis le site. Par défaut : modèle hors ligne (ephem_offline.py).
+    Avec online=True : JPL Horizons (référence, demande internet)."""
+    if online:
+        print(f"Horizons : Soleil et Terre vus depuis lat={lat}, lon={lon}, début {start:%Y-%m-%d %H:%M} UTC ...")
+        sun = fetch_azel("10", lat, lon, start)
+        earth = fetch_azel("399", lat, lon, start)
+        origin = "Horizons"
+    else:
+        import ephem_offline
+        print(f"Modèle hors ligne : Soleil et Terre vus depuis lat={lat}, lon={lon}, début {start:%Y-%m-%d %H:%M} UTC ...")
+        rows = ephem_offline.azel_series(lat, lon, start, N_STEPS, STEP_MIN)
+        sun = [(r[0], r[1]) for r in rows]
+        earth = [(r[2], r[3]) for r in rows]
+        origin = "modele hors ligne (Meeus)"
     os.makedirs(OUT, exist_ok=True)
     with open(os.path.join(OUT, "ephem.csv"), "w", encoding="utf-8") as f:
-        f.write(f"# Horizons, site lat={lat} lon={lon}, debut {start:%Y-%m-%d %H:%M} UTC, pas {STEP_MIN} min\n")
+        f.write(f"# {origin}, site lat={lat} lon={lon}, debut {start:%Y-%m-%d %H:%M} UTC, pas {STEP_MIN} min\n")
         f.write(f"# azimuts dans le repere image (nord local + {theta:.2f} deg)\n")
         for i in range(N_STEPS):
             sa = (sun[i][0] + theta) % 360.0
@@ -136,28 +203,49 @@ def prepare_ephem(lat, lon, start, theta):
 
 
 # ------------------------------------------------------------------ main
+def find_first(patterns):
+    import glob
+    for pat in patterns:
+        found = sorted(glob.glob(pat))
+        if found:
+            return found[0]
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser(description="Prépare les données réelles pour Selene")
-    ap.add_argument("--dem", help="GeoTIFF LOLA (ex. LDEM_80S_80MPP_ADJ.TIF)")
+    ap.add_argument("--dem", help="GeoTIFF LOLA polaire 80S (cherché automatiquement si absent)")
+    ap.add_argument("--global-dem", help="DEM mondial type ldem_64 (cherché automatiquement si absent)")
+    ap.add_argument("--out", default=os.path.join("data", "input"), help="dossier de sortie (un dossier par site)")
     ap.add_argument("--lat", type=float, default=-89.9, help="latitude du centre de la zone (deg, négatif au sud)")
     ap.add_argument("--lon", type=float, default=0.0, help="longitude Est du centre (deg)")
-    ap.add_argument("--cell", type=float, default=200.0, help="taille de cellule voulue en m (zone = 128 x cell)")
+    ap.add_argument("--cell", type=float, default=None, help="taille de cellule en m (zone = 128 x cell). Défaut : 200 (polaire) ou résolution native (mondial)")
     ap.add_argument("--start", default=dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d"), help="début des éphémérides (UTC, AAAA-MM-JJ)")
-    ap.add_argument("--no-ephem", action="store_true", help="ne pas appeler Horizons")
+    ap.add_argument("--no-ephem", action="store_true", help="ne pas produire ephem.csv")
+    ap.add_argument("--horizons", action="store_true", help="utiliser JPL Horizons (internet) au lieu du modèle hors ligne")
     ap.add_argument("--ephem-only", action="store_true", help="ne produire que ephem.csv")
     ap.add_argument("--theta", type=float, default=None, help="rotation (deg) pour --ephem-only")
     a = ap.parse_args()
+    global OUT
+    OUT = a.out
 
     start = dt.datetime.strptime(a.start, "%Y-%m-%d")
     theta = a.theta
     if not a.ephem_only:
-        if not a.dem:
-            ap.error("--dem est obligatoire (sauf avec --ephem-only)")
-        theta = prepare_dem(a.dem, a.lat, a.lon, a.cell)
+        polar = a.dem or find_first(["LDEM_80S*.tif*", "ldem_80s*.tif*"])
+        glob_dem = a.global_dem or find_first(["ldem_64*.tif*", "LDEM_64*.tif*", "ldem_16*.tif*", "LDEM_16*.tif*"])
+        if a.lat <= -81.0 and polar:
+            theta = prepare_dem(polar, a.lat, a.lon, a.cell or 200.0)
+        elif glob_dem:
+            if a.lat <= -81.0:
+                print("[!] DEM polaire introuvable : utilisation du DEM mondial (moins précis).")
+            theta = prepare_dem_global(glob_dem, a.lat, a.lon, a.cell)
+        else:
+            sys.exit("[!] Aucun DEM trouvé : placez LDEM_80S_80MPP_ADJ.tiff (pôle Sud) et/ou ldem_64.tif (mondial) dans le dossier du projet.")
     elif theta is None:
         ap.error("--ephem-only demande --theta (voir dem.txt)")
     if not a.no_ephem:
-        prepare_ephem(a.lat, a.lon, start, theta)
+        prepare_ephem(a.lat, a.lon, start, theta, online=a.horizons)
     print("Terminé. Relancez selene.exe.")
 
 
