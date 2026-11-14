@@ -7,7 +7,7 @@
 ## Team members / Membres
 | Name / Nom | GitHub |
 |---|---|
-| name1 | @github-username1 |
+| name1 | @Tom_Nivet |
 | name2 | @SyNo0oP |
 
 ## The problem / Le problème
