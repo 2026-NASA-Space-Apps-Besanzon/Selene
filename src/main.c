@@ -21,6 +21,27 @@
 #include <math.h>
 #include <string.h>
 #include <stdint.h>
+#include <time.h>
+#ifdef _WIN32
+#include <direct.h>
+#define MKDIR(p) _mkdir(p)
+#else
+#include <sys/stat.h>
+#define MKDIR(p) mkdir(p, 0755)
+#endif
+/* Compression des résultats d'analyse (sdefl / sinfl, domaine public). Les noms sont préfixés : raylib embarque les mêmes fonctions. */
+#define sdeflate sln_sdeflate
+#define zsdeflate sln_zsdeflate
+#define sdefl_bound sln_sdefl_bound
+#define sinflate sln_sinflate
+#define zsinflate sln_zsinflate
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#define SDEFL_IMPLEMENTATION
+#include "sdefl.h"
+#define SINFL_IMPLEMENTATION
+#include "sinfl.h"
+#pragma GCC diagnostic pop
 
 /* ===================== Paramètres ===================== */
 #define GW 128                  /* largeur de la grille (cellules) */
@@ -209,6 +230,448 @@ static float longest_run_days(const uint8_t *arr, int k, int val) {
     return best * STEP_H / 24.0f;
 }
 
+/* ===================== Classement des sites (année complète) ===================== */
+#define NY 1461                  /* une année, pas de 6 h */
+#define YSTEP_H 6.0
+#define NAZ 180                  /* profil d'horizon : secteurs de 2 degrés */
+#define SUN_RADIUS_DEG 0.27
+#define EARTH_RADIUS_KM 6371.0
+#define EPHEM_START "2026-12-01"   /* même date de départ pour tous les sites : indispensable pour les comparer */
+
+static float horiz[(size_t)NCELL * NAZ];                 /* hauteur du relief (deg) par cellule et par direction */
+static uint8_t ysun[(size_t)NCELL * NY];                 /* part du Soleil visible (0..255), par cellule puis par pas de temps */
+static uint8_t yearth[(size_t)NCELL * NY];               /* part de la Terre visible (0..255) */
+static int8_t ymarg[(size_t)NCELL * NY];                 /* marge angulaire de la Terre au-dessus du relief (0,1 deg) */
+static double ysun_v[NY][3], yearth_v[NY][3];
+static uint8_t is_psr[NCELL];                            /* 1 = jamais éclairée sur l'année (ombre permanente) */
+static float psr_dist[NCELL];                            /* distance à l'ombre permanente la plus proche (m) */
+static int year_loaded = 0, year_ready = 0, psr_count = 0;
+
+static int load_year(const char *dir) {
+    char p[340];
+    snprintf(p, sizeof p, "%s/ephem_year.csv", dir);
+    FILE *f = fopen(p, "r");
+    if (!f) return 0;
+    char line[256];
+    int k = 0;
+    while (k < NY && fgets(line, sizeof line, f)) {
+        if (line[0] == '#') continue;
+        double t, a, b, c, d, e, g;
+        if (sscanf(line, "%lf,%lf,%lf,%lf,%lf,%lf,%lf", &t, &a, &b, &c, &d, &e, &g) == 7) {
+            ysun_v[k][0] = a; ysun_v[k][1] = b; ysun_v[k][2] = c;
+            yearth_v[k][0] = d; yearth_v[k][1] = e; yearth_v[k][2] = g;
+            k++;
+        }
+    }
+    fclose(f);
+    return k == NY;
+}
+
+/* Profil d'horizon de chaque cellule : angle maximal du relief dans chaque direction (courbure incluse, plancher = 0) */
+static void compute_horizon(void) {
+    for (int y = 0; y < GH; y++)
+        for (int x = 0; x < GW; x++) {
+            int k = y * GW + x;
+            float h0 = dem[k];
+            for (int a = 0; a < NAZ; a++) {
+                double az = a * (2.0 * PI / NAZ), dx = sin(az), dy = -cos(az), best = 0.0;
+                for (int d = 1;; d++) {
+                    double s = d * (double)cell_m, drop = s * s / (2.0 * LUNAR_R_M);
+                    if ((dem_max - h0) - drop <= s * best) break;
+                    int ix = (int)lround(x + dx * d), iy = (int)lround(y + dy * d);
+                    if (ix < 0 || ix >= GW || iy < 0 || iy >= GH) break;
+                    double t = (dem[iy * GW + ix] - h0 - drop) / s;
+                    if (t > best) best = t;
+                }
+                horiz[(size_t)k * NAZ + a] = (float)(atan(best) * 180.0 / PI);
+            }
+        }
+}
+
+static double hor_at(int k, double az_deg) {
+    double a = az_deg / (360.0 / NAZ);
+    a = fmod(a, NAZ);
+    if (a < 0) a += NAZ;
+    int i0 = (int)a, i1 = (i0 + 1) % NAZ;
+    double w = a - i0;
+    const float *h = &horiz[(size_t)k * NAZ];
+    return h[i0] * (1.0 - w) + h[i1] * w;
+}
+
+static uint8_t frac_u8(double margin, double radius) {     /* part visible d'un disque d'un rayon donné, selon sa marge au-dessus du relief */
+    double f = (margin + radius) / (2.0 * radius);
+    if (f <= 0) return 0;
+    if (f >= 1) return 255;
+    return (uint8_t)(f * 255.0 + 0.5);
+}
+
+/* Distance de chaque case à l'ombre permanente la plus proche (transformée de distance en 2 passes) */
+static void compute_psr_dist(void) {
+    psr_count = 0;
+    for (int k = 0; k < NCELL; k++) { psr_dist[k] = is_psr[k] ? 0.0f : 1e9f; psr_count += is_psr[k]; }
+    for (int y = 0; y < GH; y++)
+        for (int x = 0; x < GW; x++) {
+            int k = y * GW + x;
+            if (x > 0 && psr_dist[k - 1] + 1.0f < psr_dist[k]) psr_dist[k] = psr_dist[k - 1] + 1.0f;
+            if (y > 0) {
+                if (psr_dist[k - GW] + 1.0f < psr_dist[k]) psr_dist[k] = psr_dist[k - GW] + 1.0f;
+                if (x > 0 && psr_dist[k - GW - 1] + 1.4142f < psr_dist[k]) psr_dist[k] = psr_dist[k - GW - 1] + 1.4142f;
+                if (x < GW - 1 && psr_dist[k - GW + 1] + 1.4142f < psr_dist[k]) psr_dist[k] = psr_dist[k - GW + 1] + 1.4142f;
+            }
+        }
+    for (int y = GH - 1; y >= 0; y--)
+        for (int x = GW - 1; x >= 0; x--) {
+            int k = y * GW + x;
+            if (x < GW - 1 && psr_dist[k + 1] + 1.0f < psr_dist[k]) psr_dist[k] = psr_dist[k + 1] + 1.0f;
+            if (y < GH - 1) {
+                if (psr_dist[k + GW] + 1.0f < psr_dist[k]) psr_dist[k] = psr_dist[k + GW] + 1.0f;
+                if (x < GW - 1 && psr_dist[k + GW + 1] + 1.4142f < psr_dist[k]) psr_dist[k] = psr_dist[k + GW + 1] + 1.4142f;
+                if (x > 0 && psr_dist[k + GW - 1] + 1.4142f < psr_dist[k]) psr_dist[k] = psr_dist[k + GW - 1] + 1.4142f;
+            }
+        }
+    for (int k = 0; k < NCELL; k++) if (psr_dist[k] < 1e8f) psr_dist[k] *= cell_m;
+}
+
+/* Visibilité du Soleil et de la Terre, cellule par cellule, sur l'année entière (disque solaire et terrestre pris en compte) */
+static void compute_year(void) {
+    for (int k = 0; k < NCELL; k++) {
+        const float *f = &frame[9 * k];
+        uint8_t *us = &ysun[(size_t)k * NY], *ue = &yearth[(size_t)k * NY];
+        int8_t *um = &ymarg[(size_t)k * NY];
+        int any = 0;
+        for (int t = 0; t < NY; t++) {
+            double az, el, m;
+            const double *sv = ysun_v[t];
+            uint8_t fs = 0;
+            if (sv[0] * f[0] + sv[1] * f[1] + sv[2] * f[2] > -0.0209) {     /* au-dessus de -1,2 deg */
+                cell_azel(k, sv, &az, &el);
+                fs = frac_u8(el - hor_at(k, az), SUN_RADIUS_DEG);
+            }
+            us[t] = fs;
+            any |= fs;
+            double v[3] = {yearth_v[t][0] - LUNAR_R_KM * f[0], yearth_v[t][1] - LUNAR_R_KM * f[1], yearth_v[t][2] - LUNAR_R_KM * f[2]};
+            double len = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+            if ((v[0] * f[0] + v[1] * f[1] + v[2] * f[2]) / len > -0.0349) {  /* au-dessus de -2 deg */
+                cell_azel(k, v, &az, &el);
+                double rE = asin(EARTH_RADIUS_KM / len) * 180.0 / PI;
+                m = el - hor_at(k, az);
+                ue[t] = frac_u8(m, rE);
+                double q = m * 10.0;
+                um[t] = (int8_t)(q > 127 ? 127 : (q < -127 ? -127 : q));
+            } else { ue[t] = 0; um[t] = -127; }
+        }
+        is_psr[k] = !any;
+    }
+    compute_psr_dist();
+    year_ready = 1;
+}
+
+/* ----- enregistrement des résultats d'analyse (évite de refaire les quelques secondes de calcul) ----- */
+#define ANALYSIS_VERSION 3         /* à incrémenter si l'algorithme change : l'ancien fichier est alors ignoré */
+
+static uint64_t analysis_hash(void) {          /* empreinte des entrées : si le site est re-préparé, le fichier est invalidé */
+    uint64_t h = 1469598103934665603ULL;
+#define HB(ptr, n) { const unsigned char *q_ = (const unsigned char *)(ptr); for (size_t i_ = 0; i_ < (n); i_++) { h ^= q_[i_]; h *= 1099511628211ULL; } }
+    HB(&cell_m, sizeof cell_m);
+    HB(dem, sizeof dem);
+    HB(frame, sizeof frame);
+    HB(ysun_v, sizeof ysun_v);
+    HB(yearth_v, sizeof yearth_v);
+#undef HB
+    return h;
+}
+
+static int save_analysis(const char *dir) {
+    char p[340];
+    snprintf(p, sizeof p, "%s/analysis.bin", dir);
+    FILE *f = fopen(p, "wb");
+    if (!f) return 0;
+    uint32_t head[5] = {0x314E4C53u, ANALYSIS_VERSION, GW, GH, NY};
+    uint64_t h = analysis_hash();
+    int ok = fwrite(head, sizeof head, 1, f) == 1 && fwrite(&h, sizeof h, 1, f) == 1 && fwrite(is_psr, 1, sizeof is_psr, f) == sizeof is_psr;
+    const void *src[3] = {ysun, yearth, ymarg};
+    int n = (int)((size_t)NCELL * NY);
+    unsigned char *buf = (unsigned char *)malloc((size_t)sdefl_bound(n));
+    static struct sdefl sd;
+    ok = ok && buf;
+    for (int i = 0; ok && i < 3; i++) {
+        memset(&sd, 0, sizeof sd);
+        int clen = sdeflate(&sd, buf, src[i], n, 5);
+        uint32_t cl = (uint32_t)clen;
+        ok = fwrite(&cl, 4, 1, f) == 1 && fwrite(buf, 1, (size_t)clen, f) == (size_t)clen;
+    }
+    free(buf);
+    fclose(f);
+    if (!ok) remove(p);
+    return ok;
+}
+
+static int load_analysis(const char *dir) {
+    char p[340];
+    snprintf(p, sizeof p, "%s/analysis.bin", dir);
+    FILE *f = fopen(p, "rb");
+    if (!f) return 0;
+    uint32_t head[5];
+    uint64_t h = 0;
+    int ok = fread(head, sizeof head, 1, f) == 1 && fread(&h, sizeof h, 1, f) == 1;
+    ok = ok && head[0] == 0x314E4C53u && head[1] == ANALYSIS_VERSION && head[2] == GW && head[3] == GH && head[4] == NY && h == analysis_hash();
+    ok = ok && fread(is_psr, 1, sizeof is_psr, f) == sizeof is_psr;
+    void *dst[3] = {ysun, yearth, ymarg};
+    int n = (int)((size_t)NCELL * NY);
+    unsigned char *buf = ok ? (unsigned char *)malloc((size_t)sdefl_bound(n)) : NULL;
+    ok = ok && buf;
+    for (int i = 0; ok && i < 3; i++) {
+        uint32_t cl = 0;
+        ok = fread(&cl, 4, 1, f) == 1 && cl <= (uint32_t)sdefl_bound(n) && fread(buf, 1, cl, f) == cl && sinflate(dst[i], n, buf, (int)cl) == n;
+    }
+    free(buf);
+    fclose(f);
+    if (ok) { compute_psr_dist(); year_ready = 1; }
+    return ok;
+}
+
+/* ----- paramètres et évaluation d'une cellule ----- */
+typedef struct {
+    float w[5];                       /* poids : énergie, communication, thermique, terrain, science */
+    float smax_deg, sigma_max_m, night_max_h, ellipse_m, d0_m;
+    int relay;                        /* 1 = Terre non exigée (un relais assure la liaison) */
+    int s0, len;                      /* début et durée de la mission (pas de 6 h) */
+} Params;
+
+typedef struct {
+    float sub[5];
+    float sun_frac, com_frac, night_h, margin_deg;
+    int trans, valid;
+    int fail;                         /* bits : 1 pente, 2 rugosité, 4 Terre jamais visible, 8 nuit trop longue, 16 non évaluable (bord) */
+} CellEval;
+
+typedef struct {
+    int k;
+    float score;
+    CellEval e;
+    float slope, rough;
+    int best_s0;
+    float best_score;
+    float robust;                     /* part des perturbations de poids où le site reste dans le top (-1 = non calculé) */
+    float lat, lon;                   /* position sur la Lune (deg) */
+} Cand;
+
+static void cell_latlon(int k, float *lat, float *lon) {
+    const float *f = &frame[9 * k];
+    double z = f[2] > 1.0f ? 1.0 : (f[2] < -1.0f ? -1.0 : f[2]);
+    *lat = (float)(asin(z) * 180.0 / PI);
+    *lon = (float)(atan2(f[1], f[0]) * 180.0 / PI);
+}
+
+static float ter_slope[NCELL], ter_rough[NCELL];
+static uint8_t ter_ok[NCELL];
+static float ter_ellipse = -1.0f;
+static float cell_score[NCELL];       /* -1 = hors zone ou éliminé, sinon note 0..100 */
+static float cell_pen[NCELL];         /* départage à note égale : petit malus proportionnel à la distance au centre */
+static float cell_raw[NCELL];         /* note qu'aurait la cellule sans les filtres (-1 = hors zone) : sert à l'affichage des cases éliminées */
+static int st_total = 0, st_eval = 0, st_valid = 0, st_fail[4];   /* bilan des filtres sur la zone de recherche */
+static CellEval cell_eval[NCELL];
+static uint8_t in_region[NCELL];
+
+/* Pente la plus forte et rugosité (écart-type au plan moyen) dans l'ellipse d'atterrissage de chaque cellule */
+static void ensure_terrain(float ellipse_m) {
+    if (ter_ellipse == ellipse_m) return;
+    ter_ellipse = ellipse_m;
+    int kw = (int)lround(ellipse_m / cell_m);
+    if (kw < 0) kw = 0;
+    int kr = kw < 1 ? 1 : kw;
+    for (int y = 0; y < GH; y++)
+        for (int x = 0; x < GW; x++) {
+            int k = y * GW + x;
+            if (x < kr || y < kr || x >= GW - kr || y >= GH - kr) { ter_ok[k] = 0; continue; }
+            double sw = slope_deg[k];
+            for (int dy = -kw; dy <= kw; dy++)
+                for (int dx = -kw; dx <= kw; dx++)
+                    if (dx * dx + dy * dy <= kw * kw && slope_deg[(y + dy) * GW + x + dx] > sw) sw = slope_deg[(y + dy) * GW + x + dx];
+            double n = 0, sh = 0, sxh = 0, syh = 0, sh2 = 0, sxx = 0;
+            for (int dy = -kr; dy <= kr; dy++)
+                for (int dx = -kr; dx <= kr; dx++) {
+                    double h = dem[(y + dy) * GW + x + dx];
+                    n++; sh += h; sxh += dx * h; syh += dy * h; sh2 += h * h; sxx += dx * dx;
+                }
+            double c = sh / n, a = sxh / sxx, b = syh / sxx;
+            double var = (sh2 - n * c * c - a * a * sxx - b * b * sxx) / n;
+            ter_slope[k] = (float)sw;
+            ter_rough[k] = (float)sqrt(var > 0 ? var : 0);
+            ter_ok[k] = 1;
+        }
+}
+
+static float aggregate(const float sub[5], const float w[5]) {   /* moyenne géométrique pondérée : une faiblesse pénalise fortement */
+    double sw = 0, acc = 0;
+    for (int i = 0; i < 5; i++) if (w[i] > 0) { acc += w[i] * log(sub[i] + 0.02); sw += w[i]; }
+    if (sw <= 0) return 0.0f;
+    double g = (exp(acc / sw) - 0.02);
+    return (float)(100.0 * (g < 0 ? 0 : (g > 1 ? 1 : g)));
+}
+
+static double clamp01(double v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+
+/* Évalue la cellule (x, y) sur la fenêtre de mission P->s0 .. P->s0 + P->len. Renvoie 1 si elle passe les filtres éliminatoires. */
+static int eval_cell(int x, int y, const Params *P, CellEval *E) {
+    int k = y * GW + x;
+    E->valid = 0;
+    E->fail = 0;
+    if (!ter_ok[k] || P->s0 < 0 || P->s0 + P->len > NY) { E->fail = 16; return 0; }
+    const uint8_t *us = &ysun[(size_t)k * NY + P->s0], *ue = &yearth[(size_t)k * NY + P->s0];
+    const int8_t *um = &ymarg[(size_t)k * NY + P->s0];
+    double sun = 0, com = 0, mar = 0;
+    int nmar = 0, run = 0, best = 0, trans = 0, prev = -1;
+    for (int i = 0; i < P->len; i++) {
+        sun += us[i];
+        com += ue[i];
+        int lit = us[i] >= 128;
+        if (!lit) { if (++run > best) best = run; } else run = 0;
+        if (prev >= 0 && lit != prev) trans++;
+        prev = lit;
+        if (ue[i] >= 128) { mar += um[i] * 0.1; nmar++; }
+    }
+    E->sun_frac = (float)(sun / (255.0 * P->len));
+    E->com_frac = (float)(com / (255.0 * P->len));
+    E->night_h = (float)(best * YSTEP_H);
+    E->margin_deg = nmar ? (float)(mar / nmar) : 0.0f;
+    E->trans = trans;
+    double days = P->len * YSTEP_H / 24.0;
+    double sl = ter_slope[k], ro = ter_rough[k];
+    double st = 1.0 - (sl / P->smax_deg) * (sl / P->smax_deg), sr = 1.0 - (ro / P->sigma_max_m) * (ro / P->sigma_max_m);
+    E->sub[0] = (float)clamp01(0.7 * E->sun_frac + 0.3 * (1.0 - E->night_h / P->night_max_h));
+    E->sub[1] = (float)clamp01(0.8 * E->com_frac + 0.2 * clamp01(E->margin_deg / 5.0));
+    E->sub[2] = (float)clamp01(1.0 - trans / (2.0 * days));          /* indicateur de substitution : cycles lumière/ombre, PAS une température */
+    E->sub[3] = (float)clamp01(0.5 * clamp01(st) + 0.5 * clamp01(sr));
+    E->sub[4] = psr_dist[k] < 1e8f ? (float)exp(-psr_dist[k] / P->d0_m) : 0.0f;
+    if (sl > P->smax_deg) E->fail |= 1;
+    if (ro > P->sigma_max_m) E->fail |= 2;
+    if (!P->relay && E->com_frac <= 0.0f) E->fail |= 4;
+    if (E->night_h > P->night_max_h) E->fail |= 8;
+    E->valid = (E->fail == 0);
+    return E->valid;
+}
+
+/* Suppression des non-maximums : meilleur site, puis exclusion d'un disque autour de lui, et on recommence */
+static int nms(const float *score, const uint8_t *ok, double excl_m, int nmax, int *outk) {
+    static uint8_t taken[NCELL];
+    memset(taken, 0, sizeof taken);
+    int n = 0;
+    while (n < nmax) {
+        int bk = -1;
+        float bs = 0.0f;
+        for (int k = 0; k < NCELL; k++) if (ok[k] && !taken[k] && score[k] > bs) { bs = score[k]; bk = k; }
+        if (bk < 0) break;
+        outk[n++] = bk;
+        int bx = bk % GW, by = bk / GW;
+        for (int k = 0; k < NCELL; k++) {
+            double dx = (k % GW - bx) * (double)cell_m, dy = (k / GW - by) * (double)cell_m;
+            if (dx * dx + dy * dy <= excl_m * excl_m) taken[k] = 1;
+        }
+    }
+    return n;
+}
+
+static void best_start_for_cell(const Params *P, int k, int *bs0, float *bscore) {
+    Params q = *P;
+    *bs0 = P->s0; *bscore = -1.0f;
+    for (int s0 = 0; s0 + P->len <= NY; s0 += 4) {          /* une date de départ par jour */
+        q.s0 = s0;
+        CellEval e;
+        if (eval_cell(k % GW, k / GW, &q, &e)) {
+            float sc = aggregate(e.sub, P->w);
+            if (sc > *bscore) { *bscore = sc; *bs0 = s0; }
+        }
+    }
+}
+
+/* Meilleure date de départ pour toute la zone de recherche : celle qui donne le meilleur site */
+static int best_start_region(const Params *P, int cx, int cy, double radius_m) {
+    Params q = *P;
+    int bs0 = -1;
+    float best = -1.0f;
+    for (int s0 = 0; s0 + P->len <= NY; s0 += 4) {
+        q.s0 = s0;
+        for (int y = 0; y < GH; y++)
+            for (int x = 0; x < GW; x++) {
+                double dx = (x - cx) * (double)cell_m, dy = (y - cy) * (double)cell_m;
+                if (dx * dx + dy * dy > radius_m * radius_m) continue;
+                CellEval e;
+                if (eval_cell(x, y, &q, &e)) {
+                    float sc = aggregate(e.sub, P->w);
+                    if (sc > best) { best = sc; bs0 = s0; }
+                }
+            }
+    }
+    return bs0;
+}
+
+static unsigned int rk_seed = 12345u;
+static float rk_rand(void) { rk_seed = rk_seed * 1664525u + 1013904223u; return (rk_seed >> 8) / 16777216.0f; }
+
+/* Classe les sites autour de (cx, cy) dans un rayon donné. Renvoie le nombre de candidats (jusqu'à nmax). */
+static int rank_region(const Params *P, int cx, int cy, double radius_m, double excl_m, int nmax, Cand *out, int with_robust) {
+    static uint8_t okmask[NCELL];
+    static int ks[8];
+    ensure_terrain(P->ellipse_m);
+    st_total = st_eval = st_valid = 0;
+    for (int b = 0; b < 4; b++) st_fail[b] = 0;
+    for (int y = 0; y < GH; y++)
+        for (int x = 0; x < GW; x++) {
+            int k = y * GW + x;
+            double dx = (x - cx) * (double)cell_m, dy = (y - cy) * (double)cell_m;
+            in_region[k] = dx * dx + dy * dy <= radius_m * radius_m;
+            okmask[k] = 0;
+            cell_score[k] = -1.0f;
+            cell_raw[k] = -1.0f;
+            if (!in_region[k]) continue;
+            st_total++;
+            int ok = eval_cell(x, y, P, &cell_eval[k]);
+            if (cell_eval[k].fail & 16) continue;
+            st_eval++;
+            /* à note égale, on préfère la case la plus proche du centre choisi (écart <= 0,02 point, invisible à l'affichage) */
+            cell_pen[k] = 0.02f * (float)(sqrt(dx * dx + dy * dy) / (radius_m > 1.0 ? radius_m : 1.0));
+            cell_raw[k] = aggregate(cell_eval[k].sub, P->w) - cell_pen[k];
+            if (cell_raw[k] < 0.0f) cell_raw[k] = 0.0f;
+            for (int b = 0; b < 4; b++) if (cell_eval[k].fail & (1 << b)) st_fail[b]++;
+            if (ok) { cell_score[k] = cell_raw[k]; okmask[k] = 1; st_valid++; }
+        }
+    int n = nms(cell_score, okmask, excl_m, nmax > 8 ? 8 : nmax, ks);
+    int invalid_mode = 0;
+    if (n == 0) {                                  /* aucun site valide : on classe quand même les meilleurs sites éliminés (note brute) */
+        static uint8_t okraw[NCELL];
+        for (int k = 0; k < NCELL; k++) okraw[k] = in_region[k] && cell_raw[k] >= 0.0f;
+        n = nms(cell_raw, okraw, excl_m, nmax > 8 ? 8 : nmax, ks);
+        invalid_mode = 1;
+    }
+    for (int i = 0; i < n; i++) {
+        Cand *c = &out[i];
+        c->k = ks[i]; c->score = invalid_mode ? cell_raw[ks[i]] : cell_score[ks[i]]; c->e = cell_eval[ks[i]];
+        cell_latlon(ks[i], &c->lat, &c->lon);
+        c->slope = ter_slope[ks[i]]; c->rough = ter_rough[ks[i]];
+        best_start_for_cell(P, ks[i], &c->best_s0, &c->best_score);
+        c->robust = -1.0f;
+    }
+    if (with_robust && n > 0 && !invalid_mode) {                                        /* stabilité : 30 jeux de poids perturbés de +-30 % */
+        static float vs[NCELL];
+        int hits[8] = {0};
+        for (int v = 0; v < 30; v++) {
+            float w[5];
+            for (int i = 0; i < 5; i++) w[i] = P->w[i] * (0.7f + 0.6f * rk_rand());
+            for (int k = 0; k < NCELL; k++) vs[k] = okmask[k] ? aggregate(cell_eval[k].sub, w) - cell_pen[k] : 0.0f;
+            int vk[5];
+            int vn = nms(vs, okmask, excl_m, nmax > 5 ? 5 : nmax, vk);
+            for (int i = 0; i < n; i++)
+                for (int j = 0; j < vn; j++) {
+                    double dx = (ks[i] % GW - vk[j] % GW) * (double)cell_m, dy = (ks[i] / GW - vk[j] / GW) * (double)cell_m;
+                    if (dx * dx + dy * dy <= excl_m * excl_m) { hits[i]++; break; }
+                }
+        }
+        for (int i = 0; i < n; i++) out[i].robust = hits[i] / 30.0f;
+    }
+    return n;
+}
+
 /* ===================== Interface : widgets minimalistes ===================== */
 static const Color C_BG = {16, 21, 28, 255}, C_PANEL = {24, 32, 42, 255}, C_LINE = {42, 53, 68, 255};
 static const Color C_TXT = {232, 236, 242, 255}, C_MUT = {142, 155, 176, 255};
@@ -219,9 +682,10 @@ static const Color C_BTN = {42, 53, 68, 255}, C_HOT = {60, 74, 94, 255};
 static const void *g_active = NULL;   /* widget en cours de glissement */
 static bool g_block = false;          /* vrai quand le menu déroulant est ouvert (les autres widgets ignorent la souris) */
 static bool g_dd_open = false;
+static float g_clip_top = 0.0f;       /* les widgets au-dessus de cette ordonnée ignorent la souris (panneau défilant) */
 
 static bool ui_button(Rectangle r, const char *txt, bool on) {
-    bool hot = !g_block && CheckCollisionPointRec(GetMousePosition(), r);
+    bool hot = !g_block && GetMousePosition().y >= g_clip_top && CheckCollisionPointRec(GetMousePosition(), r);
     DrawRectangleRec(r, on ? C_SUN : (hot ? C_HOT : C_BTN));
     int w = MeasureText(txt, 16);
     DrawText(txt, (int)(r.x + (r.width - w) / 2), (int)(r.y + (r.height - 16) / 2), 16, on ? (Color){26, 20, 5, 255} : C_TXT);
@@ -235,7 +699,7 @@ static bool ui_slider(float x, float y, float w, const char *label, float *v, fl
     Rectangle track = {x, y + 26, w, 8};
     Rectangle hit = {x, y + 18, w, 24};
     Vector2 m = GetMousePosition();
-    if (!g_block && CheckCollisionPointRec(m, hit) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) g_active = v;
+    if (!g_block && m.y >= g_clip_top && CheckCollisionPointRec(m, hit) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) g_active = v;
     bool changed = false;
     if (g_active == v) {
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
@@ -310,11 +774,25 @@ static void recolor(int layer, int t, float smax) {
         else if (layer == 2) {
             float v = (dem[k] - dem_min) / (dem_max - dem_min);
             r = 0.18f + 0.65f * v; g = 0.20f + 0.60f * v; b = 0.26f + 0.50f * v;
+        } else if (layer == 4) {                                  /* classement : vert = valide (plus clair = meilleure note), rouge = éliminé */
+            if (year_ready && is_psr[k]) { r = 0.36f; g = 0.26f; b = 0.58f; }
+            else if (year_ready && in_region[k]) {
+                if (cell_score[k] >= 0.0f) {
+                    float v = cell_score[k] / 100.0f;
+                    r = 0.06f + 0.14f * v; g = 0.30f + 0.62f * v; b = 0.12f + 0.20f * v;
+                } else {
+                    float v = cell_raw[k] >= 0.0f ? cell_raw[k] / 100.0f : 0.0f;
+                    r = 0.38f + 0.45f * v; g = 0.08f + 0.10f * v; b = 0.08f + 0.08f * v;
+                }
+            } else {
+                float v = (dem[k] - dem_min) / (dem_max - dem_min);
+                r = 0.10f + 0.28f * v; g = 0.12f + 0.28f * v; b = 0.16f + 0.26f * v;
+            }
         } else {
             float v = Clamp(slope_deg[k] / 30.0f, 0.0f, 1.0f);
             r = 0.2f + 0.7f * v; g = 0.7f - 0.5f * v; b = 0.4f - 0.2f * v;
         }
-        if (slope_deg[k] > smax && layer != 3) { r = r * 0.5f + 0.45f; g = g * 0.5f + 0.10f; b = b * 0.5f + 0.08f; }
+        if (slope_deg[k] > smax && layer != 3 && layer != 4) { r = r * 0.5f + 0.45f; g = g * 0.5f + 0.10f; b = b * 0.5f + 0.08f; }
         float s = shade_k[k];
         mesh.colors[4 * k] = (unsigned char)(Clamp(r * s, 0, 1) * 255);
         mesh.colors[4 * k + 1] = (unsigned char)(Clamp(g * s, 0, 1) * 255);
@@ -487,7 +965,6 @@ static int load_zone_center(const char *path, float *lat, float *lon) {
 
 /* ===================== Points enregistrés et sites ===================== */
 #define MAX_PTS 16
-#define EPHEM_START "2026-12-01"   /* même date de départ pour tous les sites : indispensable pour les comparer */
 
 typedef struct { char id[16]; char name[32]; float lat, lon; } SavedPt;   /* id = nom du dossier (stable), name = nom affiché (modifiable) */
 static SavedPt pts[MAX_PTS];
@@ -570,6 +1047,9 @@ static void load_site_data(const char *dir) {
     real_ephem = load_ephem(p);
     if (!real_ephem) generate_mock_ephem();
     have_frame = real_dem && real_ephem && load_frame(dir);
+    year_loaded = have_frame && load_year(dir);
+    year_ready = 0;
+    ter_ellipse = -1.0f;
     compute_visibility();
 }
 
@@ -674,6 +1154,404 @@ static void draw_scale_label(Camera3D cam, Rectangle view, int vw, int vh, float
     DrawText(txt, x, y, 16, WHITE);
 }
 
+/* ===================== Interface du classement ===================== */
+static int days_from_civil(int y, int m, int d) {
+    y -= m <= 2;
+    int era = (y >= 0 ? y : y - 399) / 400;
+    unsigned yoe = (unsigned)(y - era * 400);
+    unsigned doy = (unsigned)((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1);
+    unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + (int)doe - 719468;
+}
+
+static void civil_from_days(int z, int *y, int *m, int *d) {
+    z += 719468;
+    int era = (z >= 0 ? z : z - 146096) / 146097;
+    unsigned doe = (unsigned)(z - era * 146097);
+    unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    int yy = (int)yoe + era * 400;
+    unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    unsigned mp = (5 * doy + 2) / 153;
+    *d = (int)(doy - (153 * mp + 2) / 5 + 1);
+    *m = (int)(mp < 10 ? mp + 3 : mp - 9);
+    *y = yy + (*m <= 2);
+}
+
+/* Date calendaire du jour 'day' après le début des éphémérides (EPHEM_START) */
+static const char *date_label(float day) {
+    static int base = 0, init = 0;
+    if (!init) { int y, m, d; sscanf(EPHEM_START, "%d-%d-%d", &y, &m, &d); base = days_from_civil(y, m, d); init = 1; }
+    int y, m, d;
+    civil_from_days(base + (int)day, &y, &m, &d);
+    static const char *mois[12] = {"janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."};
+    return TextFormat("%d %s %d", d, mois[m - 1], y);
+}
+
+typedef struct {
+    float w[5];
+    float rad_km, days, start_day, smax, sigma, night, ell, excl_km;
+    int relay, tab, sel, n, init;
+    char msg[96];                     /* message sous le bouton « Meilleure date » */
+    char note[96];                    /* confirmation après « Garder ce site » */
+    int save_req;                     /* indice du candidat à enregistrer comme point (-1 = aucun) */
+    int from_cache;                   /* 1 = analyse relue depuis le disque */
+    char exp_msg[160];                /* résultat du dernier export CSV */
+    int ctr_valid, ctr_fail;          /* évaluation du point central choisi */
+    float ctr_raw, ctr_lat, ctr_lon;
+    Cand c[5];
+    float sig[16];                    /* signature des entrées : sert à détecter un changement */
+    int cx, cy;                       /* centre de la zone de recherche (cellule) */
+} Rank;
+
+static Params rk_params(const Rank *r) {
+    Params P;
+    memcpy(P.w, r->w, sizeof P.w);
+    if (psr_count == 0) P.w[4] = 0.0f;        /* aucune ombre permanente ici : le critère science n'a pas de sens, on l'ignore */
+    P.smax_deg = r->smax; P.sigma_max_m = r->sigma; P.night_max_h = r->night; P.ellipse_m = r->ell; P.d0_m = 2000.0f;
+    P.relay = r->relay;
+    P.len = (int)(r->days * 4.0f);
+    if (P.len < 4) P.len = 4;
+    P.s0 = (int)(r->start_day * 4.0f);
+    if (P.s0 > NY - P.len) P.s0 = NY - P.len;
+    if (P.s0 < 0) P.s0 = 0;
+    return P;
+}
+
+static void rk_signature(const Rank *r, float *s) {
+    for (int i = 0; i < 5; i++) s[i] = r->w[i];
+    s[5] = r->rad_km; s[6] = r->days; s[7] = r->start_day; s[8] = r->smax; s[9] = r->sigma; s[10] = r->night;
+    s[11] = r->ell; s[12] = r->excl_km; s[13] = (float)r->relay; s[14] = (float)r->cx; s[15] = (float)r->cy;
+}
+
+static void rk_update(Rank *r, int with_robust) {
+    Params P = rk_params(r);
+    r->n = rank_region(&P, r->cx, r->cy, r->rad_km * 1000.0, r->excl_km * 1000.0, 5, r->c, with_robust);
+    if (r->sel < 0 || r->sel >= r->n) r->sel = r->n ? 0 : -1;
+    int ck = r->cy * GW + r->cx;                                   /* le point central choisi par l'utilisateur */
+    r->ctr_valid = cell_eval[ck].valid;
+    r->ctr_fail = cell_eval[ck].fail;
+    r->ctr_raw = cell_raw[ck];
+    cell_latlon(ck, &r->ctr_lat, &r->ctr_lon);
+}
+
+/* Cercle de recherche posé sur le relief + sphères sur les sites candidats */
+static void draw_rank_3d(const Rank *r, float exag) {
+    float R = r->rad_km * 1000.0f / cell_m;
+    Vector3 prev = {0};
+    int have = 0;
+    for (int a = 0; a <= 96; a++) {
+        float th = a * 2.0f * PI / 96.0f;
+        float fx = r->cx + R * cosf(th), fy = r->cy + R * sinf(th);
+        int ix = (int)lroundf(fx), iy = (int)lroundf(fy);
+        if (ix < 0 || ix >= GW || iy < 0 || iy >= GH) { have = 0; continue; }
+        Vector3 p = {fx - GW / 2.0f, dem[iy * GW + ix] / cell_m * exag + 0.8f, fy - GH / 2.0f};
+        if (have) DrawLine3D(prev, p, C_SUN);
+        prev = p;
+        have = 1;
+    }
+    for (int i = 0; i < r->n; i++) {
+        int k = r->c[i].k;
+        DrawSphere((Vector3){k % GW - GW / 2.0f, dem[k] / cell_m * exag + 1.8f, k / GW - GH / 2.0f}, 1.3f,
+                   !r->c[i].e.valid ? C_BAD : (i == r->sel ? C_SUN : WHITE));
+    }
+}
+
+static void draw_rank_labels(const Rank *r, Camera3D cam, Rectangle view, int vw, int vh, float exag) {
+    for (int i = 0; i < r->n; i++) {
+        int k = r->c[i].k;
+        Vector3 wp = {k % GW - GW / 2.0f, dem[k] / cell_m * exag + 4.5f, k / GW - GH / 2.0f};
+        Vector2 sp = GetWorldToScreenEx(wp, cam, vw, vh);
+        int cx = (int)(view.x + sp.x), cy = (int)sp.y;
+        DrawCircle(cx, cy, 10, (Color){16, 21, 28, 230});
+        DrawCircleLines(cx, cy, 10, !r->c[i].e.valid ? C_BAD : (i == r->sel ? C_SUN : WHITE));
+        DrawText(TextFormat("%d", i + 1), cx - 4, cy - 7, 14, WHITE);
+    }
+}
+
+/* ----- tableau de classement posé sur la vue 3D ----- */
+static const char *score_word(float v) { return v >= 80 ? "excellent" : (v >= 60 ? "bon" : (v >= 40 ? "moyen" : "faible")); }
+static Color score_color(float v) { return v >= 80 ? (Color){70, 225, 115, 255} : (v >= 60 ? C_OK : (v >= 40 ? C_SUN : (Color){230, 150, 70, 255})); }
+
+static const char *fail_text(int f) {
+    static char buf[96];
+    buf[0] = 0;
+    if (f & 16) return "hors zone étudiée";
+    if (f & 8) strcat(buf, "nuit trop longue, ");
+    if (f & 4) strcat(buf, "Terre jamais visible, ");
+    if (f & 1) strcat(buf, "pente trop forte, ");
+    if (f & 2) strcat(buf, "terrain rugueux, ");
+    int n = (int)strlen(buf);
+    if (n >= 2) buf[n - 2] = 0;
+    return buf;
+}
+
+static float rank_table_height(const Rank *r) {
+    return 30 + 54 + (r->n ? r->n * 44.0f : 26.0f) + ((r->sel >= 0 && r->sel < r->n) ? 180.0f : 0.0f) + 50;
+}
+
+static void draw_rank_table(Rank *r, Rectangle ro) {
+    Vector2 m = GetMousePosition();
+    int x = (int)ro.x, y = (int)ro.y, w = (int)ro.width;
+    Params P = rk_params(r);
+    float sw = 0;
+    for (int i = 0; i < 5; i++) sw += P.w[i];
+    DrawRectangleRec(ro, (Color){16, 21, 28, 238});
+    DrawRectangleLinesEx(ro, 1, C_LINE);
+    DrawText("Classement des sites", x + 10, y + 7, 18, C_TXT);
+    int cy = y + 30;
+
+    /* le point choisi sur le terrain */
+    DrawRectangle(x + 6, cy, w - 12, 48, (Color){24, 32, 42, 255});
+    DrawText(TextFormat("Point choisi (clic sur le terrain) : %.2f, %.2f", r->ctr_lat, r->ctr_lon), x + 12, cy + 5, 12, C_MUT);
+    if (r->ctr_raw < 0.0f) DrawText("hors zone étudiée", x + 12, cy + 24, 16, C_BAD);
+    else if (r->ctr_valid) DrawText(TextFormat("Note %.0f / 100   (%s)", r->ctr_raw, score_word(r->ctr_raw)), x + 12, cy + 23, 18, score_color(r->ctr_raw));
+    else DrawText(TextFormat("Éliminé : %s", fail_text(r->ctr_fail)), x + 12, cy + 24, 15, C_BAD);
+    cy += 54;
+
+    if (r->n == 0) { DrawText("Aucun site à classer dans cette zone.", x + 12, cy + 4, 14, C_BAD); cy += 26; }
+    for (int i = 0; i < r->n; i++) {
+        const Cand *c = &r->c[i];
+        Rectangle rr = {(float)x + 6, (float)cy, (float)w - 12, 42};
+        int sel = (i == r->sel), ok = c->e.valid;
+        DrawRectangleRec(rr, sel ? (Color){44, 58, 76, 255} : (Color){24, 32, 42, 255});
+        if (sel) DrawRectangleLinesEx(rr, 1, ok ? C_SUN : C_BAD);
+        if (!g_block && CheckCollisionPointRec(m, rr) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) r->sel = i;
+        if (ok) {
+            DrawText(TextFormat("#%d    %.0f / 100    %s", i + 1, c->score, score_word(c->score)), x + 12, cy + 4, 17, score_color(c->score));
+            DrawText(TextFormat("%.2f, %.2f   Soleil %.0f %%   Terre %.0f %%   nuit %.0f h", c->lat, c->lon, 100 * c->e.sun_frac,
+                                100 * c->e.com_frac, c->e.night_h), x + 12, cy + 25, 12, C_MUT);
+        } else {
+            DrawText(TextFormat("#%d    %.0f / 100    ÉLIMINÉ", i + 1, c->score), x + 12, cy + 4, 17, C_BAD);
+            DrawText(TextFormat("%s   (%.2f, %.2f)", fail_text(c->e.fail), c->lat, c->lon), x + 12, cy + 25, 12, C_MUT);
+        }
+        cy += 44;
+        if (sel) {                                                    /* détail du site sélectionné */
+            DrawRectangle(x + 6, cy, w - 12, 176, (Color){20, 27, 36, 255});
+            DrawText(c->best_score >= 0 ? TextFormat("Meilleure date : %s  (note %.0f)", date_label(c->best_s0 / 4.0f), c->best_score)
+                                        : "Meilleure date : aucune date valide pour ce site", x + 12, cy + 4, 13, C_TXT);
+            DrawText(c->robust >= 0 ? TextFormat("Stabilité : %.0f %%  (30 jeux de poids perturbés de 30 %%)", 100 * c->robust)
+                                    : (ok ? "Stabilité : calculée au relâchement du curseur" : "Stabilité : sans objet (site éliminé)"), x + 12, cy + 21, 13, C_TXT);
+            DrawText("critère", x + 12, cy + 40, 11, C_MUT);
+            DrawText("sous-note (0 à 1)", x + 150, cy + 40, 11, C_MUT);
+            DrawText("poids", x + 335, cy + 40, 11, C_MUT);
+            static const char *names[5] = {"Énergie", "Communication", "Thermique*", "Terrain", "Science"};
+            for (int b = 0; b < 5; b++) {
+                int by = cy + 54 + b * 16;
+                DrawText(b == 4 && psr_count == 0 ? "Science (ignorée)" : names[b], x + 12, by, 13, C_MUT);
+                DrawRectangle(x + 150, by + 2, 140, 10, C_LINE);
+                DrawRectangle(x + 150, by + 2, (int)(140 * c->e.sub[b]), 10, C_SUN);
+                DrawText(TextFormat("%.2f", c->e.sub[b]), x + 296, by, 13, C_TXT);
+                DrawText(TextFormat("%.0f %%", sw > 0 ? 100.0f * P.w[b] / sw : 0.0f), x + 335, by, 13, C_MUT);
+            }
+            DrawText(TextFormat("pente %.1f°   rugosité %.0f m   marge Terre %.1f°", c->slope, c->rough, c->e.margin_deg), x + 12, cy + 137, 12, C_MUT);
+            if (ui_button((Rectangle){(float)x + 12, (float)cy + 153, (float)w - 24, 22}, "Garder ce site comme point enregistré", false)) r->save_req = i;
+            cy += 180;
+        }
+    }
+    cy += 4;
+    if (r->note[0]) DrawText(TextSubtext(r->note, 0, 56), x + 10, cy, 12, C_OK);
+    DrawText("Note = moyenne géométrique pondérée des 5 critères (poids = curseurs).", x + 10, cy + 14, 11, C_MUT);
+    DrawText("* Thermique : cycles lumière/ombre, ce n'est pas une température.", x + 10, cy + 28, 11, C_MUT);
+}
+
+/* ===================== Export CSV ===================== */
+static int g_csv_fr = 1;           /* 1 = Excel français (séparateur ; et virgule décimale), 0 = international (, et .) */
+
+static const char *csv_n(double v, int dec) {
+    static char buf[4][48];
+    static int bi = 0;
+    char *b = buf[bi = (bi + 1) & 3];
+    snprintf(b, 48, "%.*f", dec, v);
+    if (g_csv_fr) for (char *c = b; *c; c++) if (*c == '.') *c = ',';
+    return b;
+}
+
+static void csv_txt(FILE *f, const char *t) {
+    fputc('"', f);
+    for (; *t; t++) { if (*t == '"') fputc('"', f); fputc(*t, f); }
+    fputc('"', f);
+}
+
+static const char *fail_csv(int fl) {
+    static char buf[96];
+    buf[0] = 0;
+    if (fl & 16) return "hors zone etudiee";
+    if (fl & 8) strcat(buf, "nuit trop longue + ");
+    if (fl & 4) strcat(buf, "Terre jamais visible + ");
+    if (fl & 1) strcat(buf, "pente trop forte + ");
+    if (fl & 2) strcat(buf, "terrain rugueux + ");
+    int n = (int)strlen(buf);
+    if (n >= 3) buf[n - 3] = 0;
+    return buf;
+}
+
+/* Date ISO (AAAA-MM-JJ) du jour 'day' après le début des éphémérides */
+static void iso_date(int step6, char *out, size_t n) {
+    int y, m, d, by, bm, bd;
+    sscanf(EPHEM_START, "%d-%d-%d", &by, &bm, &bd);
+    civil_from_days(days_from_civil(by, bm, bd) + step6 / 4, &y, &m, &d);
+    snprintf(out, n, "%04d-%02d-%02d %02d:00", y, m, d, (step6 % 4) * 6);
+}
+
+static void safe_name(const char *in, char *out, size_t n) {
+    size_t j = 0;
+    for (size_t i = 0; in[i] && j + 1 < n; i++) {
+        unsigned char c = (unsigned char)in[i];
+        if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-') out[j++] = (char)c;
+        else if (j > 0 && out[j - 1] != '_') out[j++] = '_';
+    }
+    out[j] = 0;
+    if (!j) snprintf(out, n, "site");
+}
+
+/* Une ligne de CSV : les champs sont ajoutés un par un (le séparateur est géré ici) */
+typedef struct { FILE *f; int n; } Row;
+static void row_raw(Row *r, const char *s) { if (r->n++) fputs(g_csv_fr ? ";" : ",", r->f); fputs(s, r->f); }
+static void row_n(Row *r, double v, int dec) { row_raw(r, csv_n(v, dec)); }
+static void row_i(Row *r, int v) { char b[24]; snprintf(b, sizeof b, "%d", v); row_raw(r, b); }
+static void row_s(Row *r, const char *s) { if (r->n++) fputs(g_csv_fr ? ";" : ",", r->f); csv_txt(r->f, s); }
+static void row_end(Row *r) { fputc('\n', r->f); r->n = 0; }
+static void row_hdr(Row *r, const char *const *names, int n) { for (int i = 0; i < n; i++) row_raw(r, names[i]); row_end(r); }
+
+static FILE *csv_open(const char *path) {
+    FILE *f = fopen(path, "w");
+    if (f && g_csv_fr) fputs("\xEF\xBB\xBF", f);          /* BOM UTF-8 : Excel affiche correctement les accents */
+    return f;
+}
+
+/* Écrit 4 fichiers dans exports/ : classement, cases, série annuelle, paramètres. Renvoie le nombre de fichiers écrits. */
+static int export_csv(Rank *r, int cur_site, int zlev, char *msg, size_t msgn) {
+    MKDIR("exports");
+    char nm[48], base[160], p[220], d1[32];
+    safe_name(cur_site >= 0 ? pts[cur_site].name : "zone_initiale", nm, sizeof nm);
+    if (zlev != 1) snprintf(base, sizeof base, "exports/%s_%s", nm, zname[zlev]);
+    else snprintf(base, sizeof base, "exports/%s", nm);
+    Params P = rk_params(r);
+    int files = 0;
+
+    /* 1. classement des sites candidats */
+    snprintf(p, sizeof p, "%s_classement.csv", base);
+    FILE *f = csv_open(p);
+    if (!f) { snprintf(msg, msgn, "Impossible d'écrire dans le dossier exports/"); return 0; }
+    Row R = {f, 0};
+    static const char *const h1[] = {"rang", "note_sur_100", "valide", "raison_elimination", "latitude", "longitude", "altitude_m", "pente_deg", "rugosite_m",
+        "soleil_pct", "terre_pct", "nuit_max_h", "marge_terre_deg", "note_energie", "note_communication", "note_thermique_indicateur", "note_terrain",
+        "note_science", "meilleur_debut", "note_au_meilleur_debut", "stabilite_pct"};
+    row_hdr(&R, h1, 21);
+    for (int i = 0; i < r->n; i++) {
+        const Cand *c = &r->c[i];
+        row_i(&R, i + 1);
+        row_n(&R, c->score, 1);
+        row_i(&R, c->e.valid);
+        row_s(&R, c->e.valid ? "" : fail_csv(c->e.fail));
+        row_n(&R, c->lat, 4); row_n(&R, c->lon, 4); row_n(&R, dem[c->k], 0);
+        row_n(&R, c->slope, 2); row_n(&R, c->rough, 1);
+        row_n(&R, 100 * c->e.sun_frac, 1); row_n(&R, 100 * c->e.com_frac, 1);
+        row_n(&R, c->e.night_h, 0); row_n(&R, c->e.margin_deg, 2);
+        for (int b = 0; b < 5; b++) row_n(&R, c->e.sub[b], 3);
+        if (c->best_score >= 0) { iso_date(c->best_s0, d1, sizeof d1); row_s(&R, d1); row_n(&R, c->best_score, 1); }
+        else { row_raw(&R, ""); row_raw(&R, ""); }
+        if (c->robust >= 0) row_n(&R, 100 * c->robust, 0); else row_raw(&R, "");
+        row_end(&R);
+    }
+    fclose(f);
+    files++;
+
+    /* 2. toutes les cases de la grille (celles de la zone de recherche portent une note) */
+    snprintf(p, sizeof p, "%s_cases.csv", base);
+    f = csv_open(p);
+    if (f) {
+        R.f = f; R.n = 0;
+        static const char *const h2[] = {"x", "y", "latitude", "longitude", "altitude_m", "pente_deg", "pente_pire_cas_ellipse_deg", "rugosite_m",
+            "ombre_permanente", "dans_zone_recherche", "valide", "note_sur_100", "soleil_pct", "terre_pct", "nuit_max_h", "raison_elimination"};
+        row_hdr(&R, h2, 16);
+        for (int k = 0; k < NCELL; k++) {
+            float la, lo;
+            cell_latlon(k, &la, &lo);
+            int inr = in_region[k], ev = inr && cell_raw[k] >= 0.0f;
+            row_i(&R, k % GW); row_i(&R, k / GW);
+            row_n(&R, la, 4); row_n(&R, lo, 4); row_n(&R, dem[k], 0);
+            row_n(&R, slope_deg[k], 2); row_n(&R, ter_slope[k], 2); row_n(&R, ter_rough[k], 1);
+            row_i(&R, is_psr[k]); row_i(&R, inr); row_i(&R, inr && cell_eval[k].valid);
+            if (ev) { row_n(&R, cell_raw[k], 1); row_n(&R, 100 * cell_eval[k].sun_frac, 1); row_n(&R, 100 * cell_eval[k].com_frac, 1); row_n(&R, cell_eval[k].night_h, 0); }
+            else { row_raw(&R, ""); row_raw(&R, ""); row_raw(&R, ""); row_raw(&R, ""); }
+            row_s(&R, ev && !cell_eval[k].valid ? fail_csv(cell_eval[k].fail) : "");
+            row_end(&R);
+        }
+        fclose(f);
+        files++;
+    }
+
+    /* 3. série annuelle du site sélectionné (ou du point central) */
+    int kk = (r->sel >= 0 && r->sel < r->n) ? r->c[r->sel].k : r->cy * GW + r->cx;
+    snprintf(p, sizeof p, "%s_serie_annuelle.csv", base);
+    f = csv_open(p);
+    if (f) {
+        R.f = f; R.n = 0;
+        static const char *const h3[] = {"pas_6h", "date_heure_utc", "soleil_visible_pct", "terre_visible_pct", "marge_terre_deg"};
+        row_hdr(&R, h3, 5);
+        for (int t = 0; t < NY; t++) {
+            iso_date(t, d1, sizeof d1);
+            row_i(&R, t); row_s(&R, d1);
+            row_n(&R, 100.0 * ysun[(size_t)kk * NY + t] / 255.0, 1);
+            row_n(&R, 100.0 * yearth[(size_t)kk * NY + t] / 255.0, 1);
+            if (yearth[(size_t)kk * NY + t] >= 128) row_n(&R, ymarg[(size_t)kk * NY + t] * 0.1, 1); else row_raw(&R, "");
+            row_end(&R);
+        }
+        fclose(f);
+        files++;
+    }
+
+    /* 4. paramètres utilisés pour ce classement */
+    snprintf(p, sizeof p, "%s_parametres.csv", base);
+    f = csv_open(p);
+    if (f) {
+        R.f = f; R.n = 0;
+        char when[40], d0[32];
+        time_t now = time(NULL);
+        strftime(when, sizeof when, "%Y-%m-%d %H:%M:%S", localtime(&now));
+        iso_date(P.s0, d0, sizeof d0);
+        #define PRM_S(key, txt) { row_raw(&R, key); row_s(&R, txt); row_end(&R); }
+        #define PRM_N(key, v, dec) { row_raw(&R, key); row_n(&R, v, dec); row_end(&R); }
+        row_raw(&R, "parametre"); row_raw(&R, "valeur"); row_end(&R);
+        PRM_S("logiciel", "Selene")
+        PRM_S("date_export", when)
+        PRM_S("site", cur_site >= 0 ? pts[cur_site].name : "zone initiale")
+        PRM_N("latitude_point_central", r->ctr_lat, 4)
+        PRM_N("longitude_point_central", r->ctr_lon, 4)
+        PRM_N("taille_zone_km", GW * cell_m / 1000.0, 1)
+        PRM_N("taille_cellule_m", cell_m, 0)
+        PRM_N("rayon_recherche_km", r->rad_km, 1)
+        PRM_N("duree_mission_jours", P.len / 4.0, 1)
+        PRM_S("debut_mission", d0)
+        PRM_N("poids_energie", P.w[0], 0)
+        PRM_N("poids_communication", P.w[1], 0)
+        PRM_N("poids_thermique", P.w[2], 0)
+        PRM_N("poids_terrain", P.w[3], 0)
+        PRM_N("poids_science", P.w[4], 0)
+        PRM_N("critere_science_ignore", psr_count == 0, 0)
+        PRM_N("pente_max_deg", P.smax_deg, 0)
+        PRM_N("rugosite_max_m", P.sigma_max_m, 0)
+        PRM_N("nuit_continue_max_h", P.night_max_h, 0)
+        PRM_N("ellipse_atterrissage_m", P.ellipse_m, 0)
+        PRM_N("distance_min_entre_sites_km", r->excl_km, 1)
+        PRM_N("relais_disponible", P.relay, 0)
+        PRM_N("cases_etudiees", st_eval, 0)
+        PRM_N("cases_valides", st_valid, 0)
+        PRM_N("elimination_pente_pct", st_eval ? 100.0 * st_fail[0] / st_eval : 0, 1)
+        PRM_N("elimination_rugosite_pct", st_eval ? 100.0 * st_fail[1] / st_eval : 0, 1)
+        PRM_N("elimination_terre_pct", st_eval ? 100.0 * st_fail[2] / st_eval : 0, 1)
+        PRM_N("elimination_nuit_pct", st_eval ? 100.0 * st_fail[3] / st_eval : 0, 1)
+        PRM_N("cases_ombre_permanente", psr_count, 0)
+        #undef PRM_S
+        #undef PRM_N
+        fclose(f);
+        files++;
+    }
+    snprintf(msg, msgn, "%d fichiers écrits dans exports/ (%s_...)", files, nm);
+    return files;
+}
+
 /* ===================== Programme principal ===================== */
 typedef struct { bool valid; int x, y; } Site;
 
@@ -709,7 +1587,7 @@ int main(void) {
     Material gmat = LoadMaterialDefault();
     if (have_globe) SetMaterialTexture(&gmat, MATERIAL_MAP_DIFFUSE, g_tex);
 
-    int mode = have_globe ? 0 : 1;               /* 0 = globe, 1 = site, 2 = sol */
+    int mode = have_globe ? 0 : 1;               /* 0 = globe, 1 = site, 2 = sol, 3 = classer */
     int cur_site = -1;                           /* -1 = zone initiale, sinon indice dans pts[] */
     int site_ready = 1;
     int edit_idx = -1;                           /* point en cours de renommage (-1 = aucun) */
@@ -717,6 +1595,11 @@ int main(void) {
     Rectangle edit_rect = {0, 0, 0, 0};
     int pending_load = -2, pending_prepare = -2;
     int zlev = 1;                                /* niveau de taille de zone (index dans zfac) */
+    Rank rk = {.w = {6, 6, 4, 6, 3}, .rad_km = 6.4f, .days = 7.0f, .smax = 10.0f, .sigma = 20.0f, .night = 120.0f,
+               .ell = 300.0f, .excl_km = 1.0f, .sel = -1, .save_req = -1};
+    int pending_year = 0, force_recolor = 0, rk_force = 1, cache_tried = 0;
+    float panel_scroll = 0.0f, panel_max = 0.0f;
+    const void *prev_active = NULL;
     float gyaw = 0.0f, gpitch = 0.3f, gdist = 260.0f, gexag = 15.0f, prev_gexag = -1.0f;
     int gpick_valid = 0;
     float gpick_lat = 0, gpick_lon = 0;
@@ -760,10 +1643,43 @@ int main(void) {
                 site_ready = 1;
                 site.valid = true; site.x = GW / 2; site.y = GH / 2;
                 prev_exag = -1.0f; prev_t = -1;
+                rk.n = 0; rk.sel = -1; rk.start_day = 0.0f; rk.rad_km = 0.25f * GW * cell_m / 1000.0f;
+                rk_force = 1; panel_scroll = 0.0f; rk.note[0] = 0; rk.exp_msg[0] = 0; rk.from_cache = 0; cache_tried = 0;
             }
         }
+        /* à l'ouverture de l'onglet Classer, une analyse déjà enregistrée sur le disque est rechargée automatiquement */
+        if (mode == 3 && site_ready && have_frame && year_loaded && !year_ready && !cache_tried) {
+            cache_tried = 1;
+            char dc[300], pc[340];
+            site_dir(cur_site, zlev, dc, sizeof dc);
+            snprintf(pc, sizeof pc, "%s/analysis.bin", dc);
+            if (FileExists(pc)) pending_year = 1;
+        }
+        if (pending_year) {
+            pending_year = 0;
+            char dy[300], pcache[340];
+            site_dir(cur_site, zlev, dy, sizeof dy);
+            snprintf(pcache, sizeof pcache, "%s/analysis.bin", dy);
+            rk.from_cache = 0;
+            if (FileExists(pcache)) {
+                draw_message("Chargement de l'analyse enregistrée...");
+                rk.from_cache = load_analysis(dy);
+            }
+            if (!rk.from_cache) {
+                draw_message("Analyse de l'année complète (quelques secondes)...");
+                compute_horizon();
+                compute_year();
+                draw_message("Enregistrement des résultats pour la prochaine fois...");
+                save_analysis(dy);
+            }
+            rk.cx = site.valid ? site.x : GW / 2; rk.cy = site.valid ? site.y : GH / 2;
+            ensure_terrain(rk.ell);
+            Params P0 = rk_params(&rk);
+            int bd0 = best_start_region(&P0, rk.cx, rk.cy, rk.rad_km * 1000.0);                 /* on démarre à la meilleure date */
+            rk.start_day = bd0 >= 0 ? bd0 / 4.0f : 0.0f;
+            rk_force = 1; force_recolor = 1;
+        }
         g_block = g_dd_open;
-
         /* --- saisie du nouveau nom d'un point --- */
         if (edit_idx >= 0 && mode != 0) { commit_name(edit_idx, edit_buf); edit_idx = -1; }
         if (edit_idx >= 0) {
@@ -794,7 +1710,6 @@ int main(void) {
         int gm = (mode == 0);
         int sm = (mode == 2);                    /* mode vue du sol */
         float eff_exag = sm ? 1.0f : exag;       /* en vue du sol, relief réel (x1) indispensable pour un horizon exact */
-
         Rectangle view = {PANEL_W, 0, (float)(sw - PANEL_W), (float)(gm ? sh : sh - TL_H)};
         Rectangle tl = {PANEL_W, (float)(sh - TL_H), (float)(sw - PANEL_W), TL_H};
         Vector2 m = GetMousePosition();
@@ -805,7 +1720,7 @@ int main(void) {
             rt_w = vw; rt_h = vh;
         }
 
-        /* --- caméra (orbitale pour Globe/Site, première personne pour Sol) --- */
+        /* --- caméra (orbitale pour Globe/Site/Classer, première personne pour Sol) --- */
         float *cy = gm ? &gyaw : (sm ? &gnd_yaw : &yaw);
         float *cp = gm ? &gpitch : (sm ? &gnd_pitch : &pitch);
         float *cd = gm ? &gdist : &dist;
@@ -814,7 +1729,8 @@ int main(void) {
         float dmin = gm ? 130.0f : 25.0f, dmax = gm ? 600.0f : 400.0f;
 
         Rectangle zo = {view.x + view.width - 262, 6, 256, 30};      /* boutons de taille de zone */
-        bool in_view = CheckCollisionPointRec(m, view) && (gm || !CheckCollisionPointRec(m, zo));
+        Rectangle ro = {view.x + 12, 34, 392, (mode == 3 && site_ready && year_ready) ? rank_table_height(&rk) : 0.0f};   /* tableau de classement */
+        bool in_view = CheckCollisionPointRec(m, view) && (gm || (!CheckCollisionPointRec(m, zo) && !CheckCollisionPointRec(m, ro)));
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { press = m; press_in_view = in_view; }
         if (press_in_view && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             Vector2 d = GetMouseDelta();
@@ -827,6 +1743,7 @@ int main(void) {
             }
         }
         if (in_view && !sm) *cd = Clamp(*cd * (1.0f - GetMouseWheelMove() * 0.08f), dmin, dmax);
+        if (mode == 3 && m.x < PANEL_W) panel_scroll = Clamp(panel_scroll - GetMouseWheelMove() * 40.0f, 0.0f, panel_max);
 
         if (sm && site.valid) {
             int k = site.y * GW + site.x;
@@ -876,7 +1793,7 @@ int main(void) {
         }
         int t = (int)Clamp(time_f, 0, N_STEPS - 1);
 
-        /* --- calculs azimut / élévation du Soleil et de la Terre pour le site actif --- */
+        /* --- azimut / élévation du Soleil et de la Terre pour le site actif --- */
         double cur_sa = sun_az[t], cur_se = sun_el[t], cur_ea = earth_az[t], cur_ee = earth_el[t];
         if (site.valid) {
             int k = site.y * GW + site.x;
@@ -894,10 +1811,11 @@ int main(void) {
 
         /* --- mises à jour du terrain si nécessaire --- */
         if (eff_exag != prev_exag) { update_geometry(eff_exag); prev_exag = eff_exag; prev_t = -1; }
-        if (t != prev_t || layer != prev_layer || smax != prev_smax || mode != prev_mode) {
+        int eff_layer = (mode == 3) ? 4 : layer;
+        if (t != prev_t || eff_layer != prev_layer || smax != prev_smax || force_recolor || mode != prev_mode) {
             if (sm && site.valid) recolor_ground(t, site.y * GW + site.x);
-            else recolor(layer, t, smax);
-            prev_t = t; prev_layer = layer; prev_smax = smax; prev_mode = mode;
+            else recolor(eff_layer, t, smax);
+            prev_t = t; prev_layer = eff_layer; prev_smax = smax; prev_mode = mode; force_recolor = 0;
         }
         if (gm && have_globe) {
             if (gexag != prev_gexag) { globe_update_geometry(gexag); prev_gexag = gexag; }
@@ -946,6 +1864,7 @@ int main(void) {
                     int k = site.y * GW + site.x;
                     DrawSphere((Vector3){site.x - GW / 2.0f, dem[k] / cell_m * eff_exag + 1.2f, site.y - GH / 2.0f}, 1.0f, WHITE);
                 }
+                if (mode == 3 && year_ready) draw_rank_3d(&rk, eff_exag);
             }
         }
         EndMode3D();
@@ -955,7 +1874,6 @@ int main(void) {
         BeginDrawing();
         ClearBackground(C_BG);
         DrawTextureRec(rt.texture, (Rectangle){0, 0, (float)vw, -(float)vh}, (Vector2){view.x, view.y}, WHITE);
-
         if (gm && have_globe) {
             for (int i = 0; i < npts; i++) {
                 Vector3 wp = Vector3Scale(sph(pts[i].lat, pts[i].lon), GLOBE_R * 1.02f);
@@ -966,7 +1884,6 @@ int main(void) {
             }
             draw_compass(cam, view, vw, vh);
         }
-
         if (sm && site_ready && site.valid) {
             /* Repères cardinaux (N, E, S, O) sur l'horizon */
             const char *card[4] = {"N", "E", "S", "O"};
@@ -997,6 +1914,12 @@ int main(void) {
         }
 
         if (!gm && !sm && site_ready) draw_scale_label(cam, view, vw, vh, eff_exag);
+        if (mode == 3 && site_ready && year_ready) {
+            draw_rank_labels(&rk, cam, view, vw, vh, exag);
+            draw_rank_table(&rk, ro);
+            DrawText("Vert : site valide (plus clair = meilleure note)  |  Rouge : éliminé par un filtre  |  Violet : ombre permanente",
+                     (int)view.x + 12, vh - 20, 13, C_MUT);
+        }
         if (!gm && !site_ready) {
             DrawText("Site non préparé", (int)view.x + vw / 2 - 70, vh / 2 - 10, 20, C_MUT);
         }
@@ -1010,7 +1933,8 @@ int main(void) {
         }
         DrawText(gm ? "Glisser = tourner  |  molette = zoom  |  clic = marquer un point"
                     : (sm ? "Glisser = regarder autour (360°)  |  relief réel x1"
-                          : "Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site"),
+                          : (mode == 3 ? "Clic = centre de la zone de recherche  |  cercle jaune = rayon  |  chiffres = sites candidats"
+                                       : "Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site")),
                  (int)view.x + 12, 10, 14, C_MUT);
 
         /* panneau gauche */
@@ -1033,13 +1957,14 @@ int main(void) {
             DrawText(TextFormat("Cellule : %.0f m  |  relief x%.1f", cell_m, eff_exag), 18, (int)y, 14, C_MUT); y += 24;
         } else y += 26;
 
-        /* 3 onglets : Globe | Site | Sol */
-        if (ui_button((Rectangle){18, y, 88, 28}, "Globe", gm) && have_globe) mode = 0;
-        if (ui_button((Rectangle){111, y, 88, 28}, "Site", mode == 1)) mode = 1;
-        if (ui_button((Rectangle){204, y, 88, 28}, "Sol", sm)) {
+        /* 4 onglets : Globe | Site | Sol | Classer */
+        if (ui_button((Rectangle){18, y, 64, 28}, "Globe", mode == 0) && have_globe) mode = 0;
+        if (ui_button((Rectangle){88, y, 64, 28}, "Site", mode == 1)) mode = 1;
+        if (ui_button((Rectangle){158, y, 64, 28}, "Sol", sm)) {
             mode = 2;
             if (!site.valid) { site.valid = true; site.x = GW / 2; site.y = GH / 2; }
         }
+        if (ui_button((Rectangle){228, y, 64, 28}, "Classer", mode == 3)) mode = 3;
         y += 40;
 
         if (gm) {
@@ -1136,6 +2061,100 @@ int main(void) {
                     DrawText(TextSubtext(status_msg, 0, 40), 18, (int)y, 14, C_BAD); y += 18;
                     if (strlen(status_msg) > 40) DrawText(TextSubtext(status_msg, 40, 40), 18, (int)y, 14, C_BAD);
                 }
+            } else if (mode == 3) {
+                if (!have_frame || !year_loaded) {
+                    DrawText("Classement indisponible.", 18, (int)y, 16, C_TXT); y += 26;
+                    DrawText("Ce site a une ancienne préparation.", 18, (int)y, 14, C_MUT); y += 20;
+                    DrawText("Il faut les fichiers année + repères.", 18, (int)y, 14, C_MUT); y += 28;
+                    if ((cur_site >= 0 || zone_valid) && ui_button((Rectangle){18, y, 274, 30}, "Re-préparer ce site", false)) pending_prepare = cur_site;
+                } else if (!year_ready) {
+                    DrawText("Analyse annuelle requise (~ 5 s).", 18, (int)y, 16, C_TXT); y += 28;
+                    DrawText("Soleil et Terre vus de chaque case,", 18, (int)y, 14, C_MUT); y += 18;
+                    DrawText("sur une année entière, relief inclus.", 18, (int)y, 14, C_MUT); y += 30;
+                    if (ui_button((Rectangle){18, y, 274, 30}, "Analyser l'année", false)) pending_year = 1;
+                } else {
+                    float y0 = y;
+                    y -= panel_scroll;
+                    BeginScissorMode(0, (int)y0, PANEL_W, sh - (int)y0);
+                    g_clip_top = y0;
+                    float side = GW * cell_m / 1000.0f;
+                    if (rk.start_day > 365.0f - rk.days) rk.start_day = 365.0f - rk.days;
+                    if (rk.start_day < 0.0f) rk.start_day = 0.0f;
+                    if (rk.rad_km > 0.5f * side) rk.rad_km = 0.5f * side;
+                    ui_slider(18, y, 274, "Rayon de recherche", &rk.rad_km, 0.5f, 0.5f * side, TextFormat("%.1f km", rk.rad_km)); y += 40;
+                    ui_slider(18, y, 274, "Durée de la mission", &rk.days, 2.0f, 30.0f, TextFormat("%.0f j", rk.days)); y += 40;
+                    ui_slider(18, y, 274, "Début de la mission", &rk.start_day, 0.0f, 365.0f - rk.days, date_label(rk.start_day)); y += 42;
+                    if (ui_button((Rectangle){18, y, 86, 26}, "Survie", false)) { float v[5] = {10, 3, 10, 4, 1}; memcpy(rk.w, v, sizeof v); }
+                    if (ui_button((Rectangle){112, y, 86, 26}, "Glace", false)) { float v[5] = {3, 3, 2, 9, 10}; memcpy(rk.w, v, sizeof v); }
+                    if (ui_button((Rectangle){206, y, 86, 26}, "Relais", false)) { float v[5] = {4, 10, 2, 5, 1}; memcpy(rk.w, v, sizeof v); }
+                    y += 32;
+                    if (ui_button((Rectangle){18, y, 274, 24}, rk.relay ? "Relais disponible : oui" : "Relais disponible : non", rk.relay)) rk.relay = !rk.relay;
+                    y += 32;
+                    if (ui_button((Rectangle){18, y, 134, 24}, "Priorités", rk.tab == 0)) rk.tab = 0;
+                    if (ui_button((Rectangle){158, y, 134, 24}, "Contraintes", rk.tab == 1)) rk.tab = 1;
+                    y += 32;
+                    if (rk.tab == 0) {
+                        ui_slider(18, y, 274, "Énergie (Soleil)", &rk.w[0], 0, 10, TextFormat("%.0f", rk.w[0])); y += 38;
+                        ui_slider(18, y, 274, "Communication (Terre)", &rk.w[1], 0, 10, TextFormat("%.0f", rk.w[1])); y += 38;
+                        ui_slider(18, y, 274, "Stabilité thermique*", &rk.w[2], 0, 10, TextFormat("%.0f", rk.w[2])); y += 38;
+                        ui_slider(18, y, 274, "Sécurité du terrain", &rk.w[3], 0, 10, TextFormat("%.0f", rk.w[3])); y += 38;
+                        ui_slider(18, y, 274, "Intérêt scientifique (glace)", &rk.w[4], 0, 10, psr_count ? TextFormat("%.0f", rk.w[4]) : "ignoré"); y += 38;
+                        if (psr_count == 0) { DrawText("Aucune ombre permanente dans cette zone.", 18, (int)y - 6, 12, C_MUT); y += 12; }
+                    } else {
+                        ui_slider(18, y, 274, "Pente maximale", &rk.smax, 2, 25, TextFormat("%.0f°", rk.smax)); y += 38;
+                        ui_slider(18, y, 274, "Rugosité maximale", &rk.sigma, 2, 60, TextFormat("%.0f m", rk.sigma)); y += 38;
+                        ui_slider(18, y, 274, "Nuit continue maximale", &rk.night, 24, 400, TextFormat("%.0f h", rk.night)); y += 38;
+                        ui_slider(18, y, 274, "Ellipse d'atterrissage", &rk.ell, 0, 1000, TextFormat("%.0f m", rk.ell)); y += 38;
+                        ui_slider(18, y, 274, "Distance min. entre sites", &rk.excl_km, 0.5f, 5, TextFormat("%.1f km", rk.excl_km)); y += 38;
+                    }
+                    if (ui_button((Rectangle){18, y, 274, 28}, "Meilleure date pour cette zone", false)) {
+                        ensure_terrain(rk.ell);
+                        Params Pb = rk_params(&rk);
+                        int bd = best_start_region(&Pb, rk.cx, rk.cy, rk.rad_km * 1000.0);
+                        if (bd >= 0) { rk.start_day = bd / 4.0f; rk.msg[0] = 0; }
+                        else snprintf(rk.msg, sizeof rk.msg, "Aucune date valide avec ces contraintes (voir ci-dessous).");
+                    }
+                    y += 34;
+                    if (rk.msg[0]) { DrawText(TextSubtext(rk.msg, 0, 42), 18, (int)y, 13, C_BAD); y += 16; }
+                    y += 4;
+                    DrawText("Résultats", 18, (int)y, 16, C_TXT); y += 22;
+                    if (st_eval > 0) {
+                        DrawText(TextFormat("Cases valides à cette date : %.0f %%", 100.0f * st_valid / st_eval), 18, (int)y, 13, st_valid ? C_OK : C_BAD);
+                        y += 18;
+                    }
+                    if (st_eval > 0 && st_valid == 0) {
+                        DrawText("Aucun site valide à cette date.", 18, (int)y, 14, C_BAD); y += 18;
+                        DrawText("(le tableau montre les meilleurs sites éliminés)", 18, (int)y, 12, C_MUT); y += 18;
+                        static const char *why[4] = {"pente trop forte", "terrain trop rugueux", "Terre jamais visible", "nuit trop longue"};
+                        int worst = -1;
+                        float wmax = 0.0f;
+                        for (int b = 0; b < 4; b++) {
+                            float pc = st_eval ? 100.0f * st_fail[b] / st_eval : 0.0f;
+                            if (pc >= 0.5f) { DrawText(TextFormat("%s : %.0f %% des cases", why[b], pc), 18, (int)y, 13, C_MUT); y += 16; }
+                            if (pc > wmax) { wmax = pc; worst = b; }
+                        }
+                        if (worst == 3 && rk.days > 14.0f) { DrawText("Au-delà de 15 j, une nuit lunaire (~350 h)", 18, (int)y, 13, C_MUT); y += 15;
+                                                             DrawText("est inévitable : réduisez la durée ou la limite.", 18, (int)y, 13, C_MUT); y += 18; }
+                        y += 4;
+                        if (worst == 0 && ui_button((Rectangle){18, y, 274, 26}, "Autoriser pente jusqu'à 25°", false)) rk.smax = 25.0f;
+                        if (worst == 1 && ui_button((Rectangle){18, y, 274, 26}, "Autoriser rugosité jusqu'à 60 m", false)) rk.sigma = 60.0f;
+                        if (worst == 2 && ui_button((Rectangle){18, y, 274, 26}, "Activer le relais de communication", false)) rk.relay = 1;
+                        if (worst == 3 && ui_button((Rectangle){18, y, 274, 26}, "Autoriser nuit jusqu'à 400 h", false)) rk.night = 400.0f;
+                        if (worst >= 0) y += 34;
+                    }
+                    DrawText("Le classement et les notes sont dans le", 18, (int)y + 2, 12, C_MUT); y += 14;
+                    DrawText("tableau en haut à gauche de la vue 3D.", 18, (int)y + 2, 12, C_MUT); y += 18;
+                    DrawText(rk.from_cache ? "Analyse relue depuis le disque (rapide)." : "Analyse calculée puis enregistrée sur le disque.", 18, (int)y, 12, C_MUT); y += 22;
+                    if (ui_button((Rectangle){18, y, 274, 28}, "Exporter en CSV", false)) export_csv(&rk, cur_site, zlev, rk.exp_msg, sizeof rk.exp_msg);
+                    y += 32;
+                    if (ui_button((Rectangle){18, y, 164, 24}, g_csv_fr ? "Format : Excel FR (;)" : "Format : international (,)", false)) g_csv_fr = !g_csv_fr;
+                    if (ui_button((Rectangle){188, y, 104, 24}, "Ouvrir dossier", false)) { MKDIR("exports"); system("start \"\" exports"); }
+                    y += 30;
+                    if (rk.exp_msg[0]) { DrawText(TextSubtext(rk.exp_msg, 0, 42), 18, (int)y, 12, C_OK); y += 16; }
+                    EndScissorMode();
+                    g_clip_top = 0.0f;
+                    panel_max = fmaxf(0.0f, (y + panel_scroll) - (sh - 12));
+                }
             } else {
                 if (!sm) {
                     DrawText("Couche affichée", 18, (int)y, 16, C_TXT); y += 22;
@@ -1156,7 +2175,6 @@ int main(void) {
                     }
                     y += 34;
                 }
-
                 if (ui_button((Rectangle){18, y, 274, 24}, eng ? "Mode ingénieur : activé" : "Mode ingénieur : désactivé", eng)) eng = !eng;
                 y += 34;
 
@@ -1240,6 +2258,66 @@ int main(void) {
             for (int i = 0; i < npts; i++) dd_items[i + 1] = pts[i].name;
             int chosen = ui_dropdown(ddr, dd_items, npts + 1, cur_site + 1);
             if (chosen >= 0 && chosen - 1 != cur_site) { pending_load = chosen - 1; zlev = 1; }
+        }
+        /* frise annuelle du site sélectionné (onglet Classer) */
+        if (mode == 3 && site_ready && year_ready) {
+            DrawRectangleRec(tl, C_PANEL);
+            DrawRectangle((int)tl.x, (int)tl.y, (int)tl.width, 1, C_LINE);
+            int kk = (rk.sel >= 0 && rk.sel < rk.n) ? rk.c[rk.sel].k : rk.cy * GW + rk.cx;
+            float L = tl.x + 70, plotW = tl.width - 70 - 14, laneH = (tl.height - 16 - 30 - 10) / 2;
+            float ly1 = tl.y + 16, ly2 = ly1 + laneH + 10;
+            DrawRectangle((int)L, (int)ly1, (int)plotW, (int)laneH, C_SHADE);
+            DrawRectangle((int)L, (int)ly2, (int)plotW, (int)laneH, C_SHADE);
+            DrawText("Soleil", (int)tl.x + 12, (int)(ly1 + laneH / 2 - 8), 16, C_MUT);
+            DrawText("Terre", (int)tl.x + 12, (int)(ly2 + laneH / 2 - 8), 16, C_MUT);
+            for (int i = 0; i < NY; i++) {
+                float x0 = L + plotW * i / NY, w = plotW / NY + 1.0f;
+                uint8_t su = ysun[(size_t)kk * NY + i], ea = yearth[(size_t)kk * NY + i];
+                if (su) DrawRectangleRec((Rectangle){x0, ly1, w, laneH}, ColorAlpha(C_SUN, su / 255.0f));
+                if (ea) DrawRectangleRec((Rectangle){x0, ly2, w, laneH}, ColorAlpha(C_EARTH, ea / 255.0f));
+            }
+            for (int d = 0; d <= 365; d += 61) {
+                float x = L + plotW * d / 365.25f;
+                DrawRectangle((int)x, (int)(tl.y + tl.height - 30), 1, 5, C_MUT);
+                DrawText(date_label((float)d), (int)x - 28, (int)(tl.y + tl.height - 22), 12, C_MUT);
+            }
+            float xs = L + plotW * rk.start_day / 365.25f, ww = plotW * rk.days / 365.25f;
+            DrawRectangleLinesEx((Rectangle){xs, ly1 - 4, ww < 3 ? 3 : ww, 2 * laneH + 18}, 2, WHITE);
+            DrawText(TextFormat("Année complète, site %d  |  fenêtre de mission en blanc  |  clic = choisir le début", rk.sel >= 0 ? rk.sel + 1 : 0),
+                     (int)L, (int)tl.y + 1, 12, C_MUT);
+            if (CheckCollisionPointRec(m, tl) && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && g_active == NULL && g_block == false) {
+                float f = (m.x - L) / plotW * 365.25f - rk.days / 2.0f;
+                if (m.x >= L && m.x <= L + plotW) rk.start_day = Clamp(f, 0.0f, 365.0f - rk.days);
+            }
+        }
+
+        /* recalcul du classement si une entrée a changé (la stabilité n'est recalculée qu'au relâchement du curseur) */
+        if (mode == 3 && site_ready && year_ready) {
+            rk.cx = site.valid ? site.x : GW / 2;
+            rk.cy = site.valid ? site.y : GH / 2;
+            float sg[16];
+            rk_signature(&rk, sg);
+            int released = (prev_active != NULL && g_active == NULL);
+            if (rk_force || released || memcmp(sg, rk.sig, sizeof sg) != 0) {
+                if (memcmp(sg, rk.sig, sizeof sg) != 0) rk.msg[0] = 0;
+                memcpy(rk.sig, sg, sizeof sg);
+                rk_update(&rk, g_active == NULL);
+                rk_force = 0;
+                force_recolor = 1;
+            }
+        }
+        prev_active = g_active;
+        if (rk.save_req >= 0) {
+            int i = rk.save_req;
+            rk.save_req = -1;
+            if (i < rk.n && npts < MAX_PTS) {
+                snprintf(pts[npts].id, sizeof pts[npts].id, "P%d", next_id++);
+                snprintf(pts[npts].name, sizeof pts[npts].name, "Cand%d", i + 1);
+                pts[npts].lat = rk.c[i].lat; pts[npts].lon = rk.c[i].lon;
+                npts++;
+                save_points();
+                snprintf(rk.note, sizeof rk.note, "Site %d enregistré : point %s (voir l'onglet Globe).", i + 1, pts[npts - 1].id);
+            } else snprintf(rk.note, sizeof rk.note, "Impossible : %d points enregistrés au maximum.", MAX_PTS);
         }
         EndDrawing();
     }
