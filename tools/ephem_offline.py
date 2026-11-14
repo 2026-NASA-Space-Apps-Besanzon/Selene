@@ -174,6 +174,5 @@ def vectors(start, n, step_min):
     for i in range(n):
         (l, b, md), (l0, b0, sd) = body_directions(start + dt.timedelta(minutes=step_min * i))
         out.append((_unit(l0, b0), tuple(md * c for c in _unit(l, b))))
-        
     return out
 

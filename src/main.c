@@ -686,6 +686,17 @@ int main(void) {
     /* --- fenêtre --- */
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     InitWindow(1440, 860, "Selene - Planificateur de site lunaire");
+    /* --- Icône de la fenêtre --- */
+    if (FileExists("data/logo.png")) {
+        Image icon = LoadImage("data/logo.png");
+        SetWindowIcon(icon);
+        UnloadImage(icon); // raylib a copié l'icône, on peut libérer la RAM
+    }
+    Texture2D logo_tex = {0};
+    if (FileExists("data/logo.png")) {
+        logo_tex = LoadTexture("data/logo.png");
+        SetTextureFilter(logo_tex, TEXTURE_FILTER_BILINEAR);
+    }
     SetWindowMinSize(900, 700);
     SetTargetFPS(60);
     SetExitKey(KEY_NULL);                        /* Échap sert à annuler une saisie, il ne ferme plus la fenêtre */
@@ -1006,7 +1017,15 @@ int main(void) {
         DrawRectangle(0, 0, PANEL_W, sh, C_PANEL);
         DrawRectangle(PANEL_W - 1, 0, 1, sh, C_LINE);
         float y = 16;
-        DrawText("Selene", 18, (int)y, 26, C_TXT); y += 32;
+        if (logo_tex.id > 0) {
+            float size = 28.0f; // hauteur souhaitée en pixels
+            float scale = size / logo_tex.height;
+            DrawTextureEx(logo_tex, (Vector2){18, y}, 0.0f, scale, WHITE);
+            DrawText("Selene", 18 + (int)(logo_tex.width * scale) + 10, (int)y + 2, 26, C_TXT);
+        } else {
+            DrawText("Selene", 18, (int)y, 26, C_TXT);
+        }
+        y += 34;
         if (gm) { DrawText("Lune entière  |  rayon 1737 km", 18, (int)y, 14, C_MUT); y += 26; }
         else if (site_ready) {
             float side = GW * cell_m / 1000.0f;
@@ -1224,6 +1243,7 @@ int main(void) {
         }
         EndDrawing();
     }
+    if (logo_tex.id > 0) UnloadTexture(logo_tex);
     CloseWindow();
     return 0;
 }
