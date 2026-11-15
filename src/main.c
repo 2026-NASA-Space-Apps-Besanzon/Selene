@@ -22,6 +22,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <time.h>
+#include <stdarg.h>
 #ifdef _WIN32
 #include <direct.h>
 #define MKDIR(p) _mkdir(p)
@@ -42,6 +43,210 @@
 #define SINFL_IMPLEMENTATION
 #include "sinfl.h"
 #pragma GCC diagnostic pop
+
+/* ===================== Langues et unités de mesure ===================== */
+/* Les textes d'origine (français) servent de clés. Une langue = un fichier lang/xx.txt : « texte français <TAB> traduction »,
+ * une ligne par texte. Aucun paquet à installer : ajouter une langue = ajouter un fichier. Les textes sans traduction restent en français.
+ * TextFormat, DrawText et MeasureText sont redirigés : tout texte affiché passe par le dictionnaire. */
+typedef struct { const char *key; const char *val; } TrEntry;
+static TrEntry *g_tr = NULL;
+static int g_ntr = 0;
+static char *g_tr_buf = NULL;
+static char g_lang[16] = "fr";
+static int g_units = 0;                      /* 0 = métrique (m, km), 1 = impérial (ft, mi) */
+
+static int tr_cmp(const void *a, const void *b) { return strcmp(((const TrEntry *)a)->key, ((const TrEntry *)b)->key); }
+
+static const char *sln_T(const char *s) {
+    if (!g_ntr || !s || !s[0]) return s;
+    TrEntry k = {s, NULL};
+    const TrEntry *r = (const TrEntry *)bsearch(&k, g_tr, (size_t)g_ntr, sizeof(TrEntry), tr_cmp);
+    return r ? r->val : s;
+}
+
+static void tr_unload(void) {
+    free(g_tr); free(g_tr_buf);
+    g_tr = NULL; g_tr_buf = NULL; g_ntr = 0;
+}
+
+/* Charge lang/<code>.txt (le français est la langue d'origine : rien à charger). Renvoie 1 si la langue est active. */
+static int tr_load(const char *code) {
+    tr_unload();
+    snprintf(g_lang, sizeof g_lang, "%s", code);
+    if (strcmp(code, "fr") == 0) return 1;
+    char path[96];
+    snprintf(path, sizeof path, "lang/%s.txt", code);
+    FILE *f = fopen(path, "rb");
+    if (!f) { snprintf(g_lang, sizeof g_lang, "fr"); return 0; }
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    g_tr_buf = (char *)malloc((size_t)sz + 2);
+    if (!g_tr_buf) { fclose(f); snprintf(g_lang, sizeof g_lang, "fr"); return 0; }
+    size_t rd = fread(g_tr_buf, 1, (size_t)sz, f);
+    fclose(f);
+    g_tr_buf[rd] = '\n'; g_tr_buf[rd + 1] = 0;
+    char *p = g_tr_buf;
+    if ((unsigned char)p[0] == 0xEF && (unsigned char)p[1] == 0xBB && (unsigned char)p[2] == 0xBF) p += 3;      /* BOM */
+    int nlines = 0;
+    for (char *q = p; *q; q++) if (*q == '\n') nlines++;
+    g_tr = (TrEntry *)malloc((size_t)(nlines + 1) * sizeof(TrEntry));
+    if (!g_tr) { tr_unload(); snprintf(g_lang, sizeof g_lang, "fr"); return 0; }
+    while (*p) {
+        char *eol = strchr(p, '\n');
+        if (!eol) break;
+        *eol = 0;
+        if (eol > p && eol[-1] == '\r') eol[-1] = 0;
+        char *tab = strchr(p, '\t');
+        if (tab && tab[1]) {                      /* les lignes sans tabulation (#name=...) sont des commentaires */ *tab = 0; g_tr[g_ntr].key = p; g_tr[g_ntr].val = tab + 1; g_ntr++; }
+        p = eol + 1;
+    }
+    qsort(g_tr, (size_t)g_ntr, sizeof(TrEntry), tr_cmp);
+    return 1;
+}
+
+static const char *sln_textformat(const char *fmt, ...) {
+    static char buf[8][1024];
+    static int idx = 0;
+    char *cur = buf[idx];
+    idx = (idx + 1) & 7;
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(cur, 1024, sln_T(fmt), args);
+    va_end(args);
+    return cur;
+}
+/* ----- police Unicode (russe, japonais...) : si lang/NotoSansCJKjp-subset.otf existe, elle sert pour tous les textes.
+ * Les caractères chargés = latin + tous ceux des fichiers de langue (dossier lang) (ajouter une langue ne demande aucune autre étape). ----- */
+#define LANG_FONT "lang/NotoSansCJKjp-subset.otf"
+static Font g_font;
+static int g_font_on = 0, g_font_tried = 0;
+
+static void cp_push(int **cps, int *n, int *cap, int cp) {
+    if (*n >= *cap) { *cap *= 2; *cps = (int *)realloc(*cps, (size_t)*cap * sizeof(int)); }
+    (*cps)[(*n)++] = cp;
+}
+static int cp_cmp(const void *a, const void *b) { return *(const int *)a - *(const int *)b; }
+
+static void font_update(void) {
+    if (g_font_tried || !IsWindowReady()) return;
+    g_font_tried = 1;
+    if (!FileExists(LANG_FONT)) return;
+    int cap = 4096, n = 0;
+    int *cps = (int *)malloc((size_t)cap * sizeof(int));
+    if (!cps) return;
+    for (int c = 32; c <= 0x17F; c++) if (c < 0x7F || c >= 0xA0) cp_push(&cps, &n, &cap, c);
+    for (int c = 0x2010; c <= 0x2027; c++) cp_push(&cps, &n, &cap, c);
+    for (int c = 0x2190; c <= 0x2193; c++) cp_push(&cps, &n, &cap, c);
+    cp_push(&cps, &n, &cap, 0x2212);
+    if (DirectoryExists("lang")) {
+        FilePathList fl = LoadDirectoryFilesEx("lang", ".txt", false);
+        for (unsigned int i = 0; i < fl.count; i++) {
+            char *txt = LoadFileText(fl.paths[i]);
+            if (!txt) continue;
+            for (const char *q = txt; *q;) {
+                int sz = 1;
+                int cp = GetCodepointNext(q, &sz);
+                if (cp >= 32 && cp != 0xFEFF && cp != 0x7F) cp_push(&cps, &n, &cap, cp);
+                q += sz > 0 ? sz : 1;
+            }
+            UnloadFileText(txt);
+        }
+        UnloadDirectoryFiles(fl);
+    }
+    qsort(cps, (size_t)n, sizeof(int), cp_cmp);
+    int u = 0;
+    for (int i = 0; i < n; i++) if (i == 0 || cps[i] != cps[i - 1]) cps[u++] = cps[i];
+    g_font = LoadFontEx(LANG_FONT, 32, cps, u);
+    free(cps);
+    if (g_font.texture.id == GetFontDefault().texture.id) return;        /* chargement échoué : police par défaut */
+    SetTextureFilter(g_font.texture, TEXTURE_FILTER_BILINEAR);
+    g_font_on = 1;
+}
+
+static void sln_draw_text(const char *t, int x, int y, int size, Color c) {
+    t = sln_T(t);
+    font_update();
+    if (g_font_on) DrawTextEx(g_font, t, (Vector2){(float)x, (float)y}, (float)size, size / 16.0f, c);
+    else DrawText(t, x, y, size, c);
+}
+static int sln_measure_text(const char *t, int size) {
+    t = sln_T(t);
+    font_update();
+    if (g_font_on) return (int)(MeasureTextEx(g_font, t, (float)size, size / 16.0f).x + 0.5f);
+    return MeasureText(t, size);
+}
+#define TR(s) sln_T(s)
+#define TextFormat sln_textformat
+#define DrawText sln_draw_text
+#define MeasureText sln_measure_text
+
+/* ----- affichage des longueurs, altitudes et surfaces selon l'unité choisie ----- */
+static const char *fmt_dist_m(double m) {            /* distance quelconque : m ou km / ft ou mi */
+    if (g_units == 0) return m < 1000.0 ? TextFormat("%.0f m", m) : TextFormat("%.1f km", m / 1000.0);
+    double ft = m * 3.280840;
+    return ft < 5280.0 ? TextFormat("%.0f ft", ft) : TextFormat("%.1f mi", m / 1609.344);
+}
+static const char *fmt_dist_km(double km) { return fmt_dist_m(km * 1000.0); }
+static const char *fmt_alt_m(double m) {             /* altitude, rugosité : toujours m / ft */
+    return g_units == 0 ? TextFormat("%.0f m", m) : TextFormat("%.0f ft", m * 3.280840);
+}
+static const char *fmt_area_km2(double km2) {
+    return g_units == 0 ? TextFormat("%.0f km²", km2) : TextFormat("%.0f mi²", km2 / 2.589988);
+}
+static const char *fmt_scale_label(double m) {       /* étiquette « ronde » de la barre d'échelle */
+    if (g_units == 0) return m >= 1000.0 ? TextFormat("%g km", m / 1000.0) : TextFormat("%.0f m", m);
+    double ft = m * 3.280840;
+    return ft < 5280.0 * 0.45 ? TextFormat("%.0f ft", ft) : TextFormat("%g mi", m / 1609.344);
+}
+
+/* ----- préférences enregistrées dans data/settings.txt ----- */
+static void load_settings(void) {
+    FILE *f = fopen("data/settings.txt", "r");
+    if (!f) return;
+    char line[96];
+    while (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\r\n")] = 0;
+        if (strncmp(line, "lang=", 5) == 0) tr_load(line + 5);
+        else if (strncmp(line, "units=", 6) == 0) g_units = strcmp(line + 6, "imperial") == 0;
+    }
+    fclose(f);
+}
+static void save_settings(void) {
+    MKDIR("data");
+    FILE *f = fopen("data/settings.txt", "w");
+    if (!f) return;
+    fprintf(f, "lang=%s\nunits=%s\n", g_lang, g_units ? "imperial" : "metric");
+    fclose(f);
+}
+
+/* langues disponibles : le français + chaque fichier lang/xx.txt (la ligne « #name=English » donne le nom affiché) */
+static struct { char code[16]; char name[40]; } g_langs[10];
+static int g_nlangs = 0;
+static void lang_scan(void) {
+    snprintf(g_langs[0].code, sizeof g_langs[0].code, "fr");
+    snprintf(g_langs[0].name, sizeof g_langs[0].name, "Français");
+    g_nlangs = 1;
+    if (!DirectoryExists("lang")) return;
+    FilePathList fl = LoadDirectoryFilesEx("lang", ".txt", false);
+    for (unsigned int i = 0; i < fl.count && g_nlangs < 10; i++) {
+        const char *code = GetFileNameWithoutExt(fl.paths[i]);
+        if (code[0] == '_' || strcmp(code, "fr") == 0) continue;
+        snprintf(g_langs[g_nlangs].code, sizeof g_langs[g_nlangs].code, "%s", code);
+        snprintf(g_langs[g_nlangs].name, sizeof g_langs[g_nlangs].name, "%s", code);
+        FILE *f = fopen(fl.paths[i], "rb");
+        if (f) {
+            char line[96];
+            for (int k = 0; k < 4 && fgets(line, sizeof line, f); k++) {
+                char *nm = strstr(line, "#name=");
+                if (nm) { nm += 6; nm[strcspn(nm, "\r\n")] = 0; snprintf(g_langs[g_nlangs].name, sizeof g_langs[g_nlangs].name, "%s", nm); break; }
+            }
+            fclose(f);
+        }
+        g_nlangs++;
+    }
+    UnloadDirectoryFiles(fl);
+}
 
 /* Utilitaires Windows (src/winproc.c) : lancement sans fenêtre de console, ouverture de dossiers */
 int sln_run_hidden(const char *cmdline);
@@ -780,7 +985,7 @@ static int ui_dropdown(Rectangle r, const char **items, int n, int sel) {
     Vector2 m = GetMousePosition();
     bool hot = CheckCollisionPointRec(m, r);
     DrawRectangleRec(r, hot ? C_HOT : C_BTN);
-    DrawText(TextFormat("Point : %s", items[sel]), (int)r.x + 10, (int)r.y + 6, 16, C_TXT);
+    DrawText(TextFormat("Point : %s", TR(items[sel])), (int)r.x + 10, (int)r.y + 6, 16, C_TXT);
     DrawText("v", (int)(r.x + r.width - 18), (int)r.y + 6, 16, C_MUT);
     int chosen = -1;
     if (g_dd_open) {
@@ -1298,7 +1503,7 @@ static void run_prepare(int idx, int z) {
     snprintf(args, sizeof args, "--lat %.4f --lon %.4f --out %s --zoom %.2f --start %s", lat, lon, dir, zfac[z], EPHEM_START);
     int has_exe = FileExists("tools/prepare_data.exe"), has_py = FileExists("tools/prepare_data.py");
     if (!has_exe && !has_py) {
-        snprintf(status_msg, sizeof status_msg, "Outil de préparation introuvable (voir Aide > Vérifier l'installation).");
+        snprintf(status_msg, sizeof status_msg, "%s", TR("Outil de préparation introuvable (voir Aide > Vérifier l'installation)."));
         return;
     }
     if (has_exe) snprintf(cmd, sizeof cmd, "tools\\prepare_data.exe %s > data\\prepare_log.txt 2>&1", args);
@@ -1337,7 +1542,9 @@ static void draw_compass(Camera3D cam, Rectangle view, int vw, int vh) {
 /* ===================== Échelle (onglet Site) ===================== */
 /* Longueur "ronde" de la barre d'échelle, environ 1/4 du côté de la zone */
 static float nice_len_m(void) {
-    static const float steps[] = {200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000};
+    static const float steps_m[] = {200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000};
+    static const float steps_i[] = {152.4f, 304.8f, 804.672f, 1609.344f, 3218.688f, 8046.72f, 16093.44f, 32186.88f, 80467.2f, 160934.4f};   /* 500 ft, 1000 ft, 0.5 mi, 1, 2, 5, 10, 20, 50, 100 mi */
+    const float *steps = g_units ? steps_i : steps_m;
     float target = 0.25f * GW * cell_m, best = steps[0];
     for (int i = 0; i < 10; i++) if (steps[i] <= target) best = steps[i];
     return best;
@@ -1369,7 +1576,7 @@ static void draw_scale_label(Camera3D cam, Rectangle view, int vw, int vh, float
     float zrow = (GH - 1) - GH / 2.0f;
     Vector3 w = {im - GW / 2.0f, dem[(GH - 1) * GW + im] / cell_m * exag + 2.5f, zrow};
     Vector2 sp = GetWorldToScreenEx(w, cam, vw, vh);
-    const char *txt = len_m >= 1000.0f ? TextFormat("%.0f km", len_m / 1000.0f) : TextFormat("%.0f m", len_m);
+    const char *txt = fmt_scale_label(len_m);
     int tw = MeasureText(txt, 16);
     int x = (int)(view.x + sp.x) - tw / 2, y = (int)sp.y - 8;
     DrawRectangle(x - 5, y - 2, tw + 10, 20, (Color){16, 21, 28, 215});
@@ -1406,7 +1613,7 @@ static const char *date_label(float day) {
     int y, m, d;
     civil_from_days(base + (int)day, &y, &m, &d);
     static const char *mois[12] = {"janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."};
-    return TextFormat("%d %s %d", d, mois[m - 1], y);
+    return TextFormat("%d %s %d", d, TR(mois[m - 1]), y);
 }
 
 typedef struct {
@@ -1491,19 +1698,20 @@ static void draw_rank_labels(const Rank *r, Camera3D cam, Rectangle view, int vw
 }
 
 /* ----- tableau de classement posé sur la vue 3D ----- */
-static const char *score_word(float v) { return v >= 80 ? "excellent" : (v >= 60 ? "bon" : (v >= 40 ? "moyen" : "faible")); }
+static const char *score_word(float v) { return TR(v >= 80 ? "excellent" : (v >= 60 ? "bon" : (v >= 40 ? "moyen" : "faible"))); }
 static Color score_color(float v) { return v >= 80 ? (Color){70, 225, 115, 255} : (v >= 60 ? C_OK : (v >= 40 ? C_SUN : (Color){230, 150, 70, 255})); }
 
 static const char *fail_text(int f) {
-    static char buf[96];
+    static char buf[160];
     buf[0] = 0;
-    if (f & 16) return "hors zone étudiée";
-    if (f & 8) strcat(buf, "nuit trop longue, ");
-    if (f & 4) strcat(buf, "Terre jamais visible, ");
-    if (f & 1) strcat(buf, "pente trop forte, ");
-    if (f & 2) strcat(buf, "terrain rugueux, ");
-    int n = (int)strlen(buf);
-    if (n >= 2) buf[n - 2] = 0;
+    if (f & 16) return TR("hors zone étudiée");
+    const char *parts[4];
+    int n = 0;
+    if (f & 8) parts[n++] = TR("nuit trop longue");
+    if (f & 4) parts[n++] = TR("Terre jamais visible");
+    if (f & 1) parts[n++] = TR("pente trop forte");
+    if (f & 2) parts[n++] = TR("terrain rugueux");
+    for (int k = 0; k < n; k++) { if (k) strncat(buf, ", ", sizeof buf - strlen(buf) - 1); strncat(buf, parts[k], sizeof buf - strlen(buf) - 1); }
     return buf;
 }
 
@@ -1565,7 +1773,7 @@ static void draw_rank_table(Rank *r, Rectangle ro) {
                 DrawText(TextFormat("%.2f", c->e.sub[b]), x + 296, by, 13, C_TXT);
                 DrawText(TextFormat("%.0f %%", sw > 0 ? 100.0f * P.w[b] / sw : 0.0f), x + 335, by, 13, C_MUT);
             }
-            DrawText(TextFormat("pente %.1f°   rugosité %.0f m   marge Terre %.1f°", c->slope, c->rough, c->e.margin_deg), x + 12, cy + 137, 12, C_MUT);
+            DrawText(TextFormat("pente %.1f°   rugosité %s   marge Terre %.1f°", c->slope, fmt_alt_m(c->rough), c->e.margin_deg), x + 12, cy + 137, 12, C_MUT);
             if (ui_button((Rectangle){(float)x + 12, (float)cy + 153, (float)w - 24, 22}, "Garder ce site comme point enregistré", false)) r->save_req = i;
             cy += 180;
         }
@@ -1595,15 +1803,16 @@ static void csv_txt(FILE *f, const char *t) {
 }
 
 static const char *fail_csv(int fl) {
-    static char buf[96];
+    static char buf[160];
     buf[0] = 0;
-    if (fl & 16) return "hors zone etudiee";
-    if (fl & 8) strcat(buf, "nuit trop longue + ");
-    if (fl & 4) strcat(buf, "Terre jamais visible + ");
-    if (fl & 1) strcat(buf, "pente trop forte + ");
-    if (fl & 2) strcat(buf, "terrain rugueux + ");
-    int n = (int)strlen(buf);
-    if (n >= 3) buf[n - 3] = 0;
+    if (fl & 16) return TR("hors zone etudiee");
+    const char *parts[4];
+    int n = 0;
+    if (fl & 8) parts[n++] = TR("nuit trop longue");
+    if (fl & 4) parts[n++] = TR("Terre jamais visible");
+    if (fl & 1) parts[n++] = TR("pente trop forte");
+    if (fl & 2) parts[n++] = TR("terrain rugueux");
+    for (int k = 0; k < n; k++) { if (k) strncat(buf, " + ", sizeof buf - strlen(buf) - 1); strncat(buf, parts[k], sizeof buf - strlen(buf) - 1); }
     return buf;
 }
 
@@ -1633,7 +1842,7 @@ static void row_n(Row *r, double v, int dec) { row_raw(r, csv_n(v, dec)); }
 static void row_i(Row *r, int v) { char b[24]; snprintf(b, sizeof b, "%d", v); row_raw(r, b); }
 static void row_s(Row *r, const char *s) { if (r->n++) fputs(g_csv_fr ? ";" : ",", r->f); csv_txt(r->f, s); }
 static void row_end(Row *r) { fputc('\n', r->f); r->n = 0; }
-static void row_hdr(Row *r, const char *const *names, int n) { for (int i = 0; i < n; i++) row_raw(r, names[i]); row_end(r); }
+static void row_hdr(Row *r, const char *const *names, int n) { for (int i = 0; i < n; i++) row_raw(r, TR(names[i])); row_end(r); }
 
 static FILE *csv_open(const char *path) {
     FILE *f = fopen(path, "w");
@@ -1654,7 +1863,7 @@ static int export_csv(Rank *r, int cur_site, int zlev, char *msg, size_t msgn) {
     /* 1. classement des sites candidats */
     snprintf(p, sizeof p, "%s_classement.csv", base);
     FILE *f = csv_open(p);
-    if (!f) { snprintf(msg, msgn, "Impossible d'écrire dans le dossier exports/"); return 0; }
+    if (!f) { snprintf(msg, msgn, "%s", TR("Impossible d'écrire dans le dossier exports/")); return 0; }
     Row R = {f, 0};
     static const char *const h1[] = {"rang", "note_sur_100", "valide", "raison_elimination", "latitude", "longitude", "altitude_m", "pente_deg", "rugosite_m",
         "soleil_pct", "terre_pct", "nuit_max_h", "marge_terre_deg", "note_energie", "note_communication", "note_thermique_indicateur", "note_terrain",
@@ -1733,12 +1942,12 @@ static int export_csv(Rank *r, int cur_site, int zlev, char *msg, size_t msgn) {
         time_t now = time(NULL);
         strftime(when, sizeof when, "%Y-%m-%d %H:%M:%S", localtime(&now));
         iso_date(P.s0, d0, sizeof d0);
-        #define PRM_S(key, txt) { row_raw(&R, key); row_s(&R, txt); row_end(&R); }
-        #define PRM_N(key, v, dec) { row_raw(&R, key); row_n(&R, v, dec); row_end(&R); }
+        #define PRM_S(key, txt) { row_raw(&R, TR(key)); row_s(&R, txt); row_end(&R); }
+        #define PRM_N(key, v, dec) { row_raw(&R, TR(key)); row_n(&R, v, dec); row_end(&R); }
         row_raw(&R, "parametre"); row_raw(&R, "valeur"); row_end(&R);
         PRM_S("logiciel", "Selene")
         PRM_S("date_export", when)
-        PRM_S("site", cur_site >= 0 ? pts[cur_site].name : "zone initiale")
+        PRM_S("site", cur_site >= 0 ? pts[cur_site].name : TR("zone initiale"))
         PRM_N("latitude_point_central", r->ctr_lat, 4)
         PRM_N("longitude_point_central", r->ctr_lon, 4)
         PRM_N("taille_zone_km", GW * cell_m / 1000.0, 1)
@@ -1770,14 +1979,14 @@ static int export_csv(Rank *r, int cur_site, int zlev, char *msg, size_t msgn) {
         fclose(f);
         files++;
     }
-    snprintf(msg, msgn, "%d fichiers écrits dans exports/ (%s_...)", files, nm);
+    snprintf(msg, msgn, TR("%d fichiers écrits dans exports/ (%s_...)"), files, nm);
     return files;
 }
 
 /* ===================== Barre de menus, boîtes de dialogue, notifications ===================== */
 enum { A_NONE = 0, A_NEWPT, A_EXPORT, A_OPEN_EXPORTS, A_OPEN_DATA, A_QUIT, A_RENAME, A_DELETE, A_RESET_RK,
        A_TAB0, A_TAB1, A_TAB2, A_TAB3, A_ZOOMIN, A_ZOOMOUT, A_FULLSCREEN, A_PREPARE, A_ANALYZE, A_CLEAR_CACHE,
-       A_CSV_FMT, A_DIAG, A_HELP, A_SHORTCUTS, A_ABOUT, A_CLEAR_ALL };
+       A_CSV_FMT, A_DIAG, A_HELP, A_SHORTCUTS, A_ABOUT, A_CLEAR_ALL, A_PREFS };
 typedef struct { const char *label; const char *key; int act; int on; } MItem;
 typedef struct { const char *title; MItem it[12]; int n; } MMenu;
 
@@ -1795,8 +2004,8 @@ static char g_newpt_name[32] = "";
 /* Valide la saisie ; en cas de succès, demande à la boucle principale de marquer (req 1) ou d'enregistrer (req 2) le point */
 static int ci_validate(int req) {
     double la, lo;
-    if (!parse_coord(g_ci[0], &la) || la < -90.0 || la > 90.0) { snprintf(g_ci_err, sizeof g_ci_err, "Latitude invalide : un nombre entre -90 et 90 (ex. -89,9 ou 89.9 S)."); return 0; }
-    if (!parse_coord(g_ci[1], &lo) || lo < -360.0 || lo > 360.0) { snprintf(g_ci_err, sizeof g_ci_err, "Longitude invalide : un nombre entre -180 et 360 (ex. 45 ou 120 O)."); return 0; }
+    if (!parse_coord(g_ci[0], &la) || la < -90.0 || la > 90.0) { snprintf(g_ci_err, sizeof g_ci_err, "%s", TR("Latitude invalide : un nombre entre -90 et 90 (ex. -89,9 ou 89.9 S).")); return 0; }
+    if (!parse_coord(g_ci[1], &lo) || lo < -360.0 || lo > 360.0) { snprintf(g_ci_err, sizeof g_ci_err, "%s", TR("Longitude invalide : un nombre entre -180 et 360 (ex. 45 ou 120 O).")); return 0; }
     while (lo > 180.0) lo -= 360.0;
     while (lo <= -180.0) lo += 360.0;
     g_newpt_lat = (float)la; g_newpt_lon = (float)lo;
@@ -1914,6 +2123,7 @@ static const char *KEYS[] = {
     "Ctrl + 1 / 2 / 3 / 4      Globe / Site / Sol / Analyse",
     "Ctrl + E                  Exporter le classement en CSV",
     "Ctrl + N                  Nouveau point (saisie de coordonnées)",
+    "Ctrl + ,                  Préférences (langue, unités)",
     "F1                        Guide d'utilisation",
     "F2                        Renommer le point actuel",
     "F11                       Plein écran",
@@ -1983,6 +2193,7 @@ static int draw_dialog(int sw, int sh_total) {
     int bw = sw - 120 < 940 ? sw - 120 : 940, bh = sh_total - 120 < 640 ? sh_total - 120 : 640;
     if (g_dialog == 5) { bw = 560; bh = 250; }
     if (g_dialog == 6) { bw = 640; bh = 430; }
+    if (g_dialog == 7) { bw = 700; bh = 430; }
     Rectangle box = {(float)(sw - bw) / 2, (float)MENU_H + (float)(sh_total - MENU_H - bh) / 2, (float)bw, (float)bh};
     DrawRectangle(0, MENU_H, sw, sh_total - MENU_H, (Color){0, 0, 0, 150});
     DrawRectangleRec(box, C_PANEL);
@@ -1996,6 +2207,7 @@ static int draw_dialog(int sw, int sh_total) {
     else if (g_dialog == 4) title = "Vérification de l'installation";
     else if (g_dialog == 5) title = "Supprimer tous les points ?";
     else if (g_dialog == 6) title = "Nouveau point : saisie des coordonnées";
+    else if (g_dialog == 7) title = "Préférences";
     DrawText(title, (int)box.x + 24, (int)box.y + 18, 22, C_SUN);
     int x = (int)box.x + 28, y = (int)box.y + 64;
     if (g_dialog == 4) {
@@ -2045,6 +2257,20 @@ static int draw_dialog(int sw, int sh_total) {
         DrawText("Entrée : enregistrer   |   Tab : champ suivant   |   Échap : annuler", x, y + 3 * 70 - 4, 13, C_MUT);
         if (g_ci_err[0]) DrawText(g_ci_err, x, y + 3 * 70 + 16, 14, C_BAD);
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_KP_ENTER)) { if (ci_validate(2)) closed = 1; }
+    } else if (g_dialog == 7) {
+        DrawText("Langue de l'interface", x, y, 16, C_TXT); y += 30;
+        for (int i = 0; i < g_nlangs; i++) {
+            Rectangle lr = {(float)(x + (i % 4) * 160), (float)(y + (i / 4) * 38), 150, 30};
+            if (ui_button(lr, g_langs[i].name, strcmp(g_lang, g_langs[i].code) == 0)) { tr_load(g_langs[i].code); save_settings(); }
+        }
+        y += ((g_nlangs + 3) / 4) * 38 + 18;
+        DrawText("Unités de mesure", x, y, 16, C_TXT); y += 30;
+        if (ui_button((Rectangle){(float)x, (float)y, 230, 30}, "Métrique (m, km)", g_units == 0)) { g_units = 0; save_settings(); }
+        if (ui_button((Rectangle){(float)x + 240, (float)y, 230, 30}, "Impérial (ft, mi)", g_units == 1)) { g_units = 1; save_settings(); }
+        y += 56;
+        DrawText("Les exports CSV restent toujours en unités métriques (m, km).", x, y, 14, C_MUT); y += 26;
+        DrawText("Ajouter une langue : copiez lang/_modele.txt en lang/xx.txt, traduisez la colonne de droite,", x, y, 14, C_MUT); y += 20;
+        DrawText("puis ajoutez en première ligne  #name=NomDeLaLangue.  Aucune installation n'est nécessaire.", x, y, 14, C_MUT);
     } else if (g_dialog == 5) {
         DrawText(TextFormat("%d point(s) enregistré(s) vont être retirés de la liste et du globe.", npts), x, y, 16, C_TXT);
         DrawText("Les sites déjà préparés restent sur le disque (aucun fichier n'est effacé).", x, y + 30, 14, C_MUT);
@@ -2097,8 +2323,9 @@ int main(void) {
     zone_valid = real_dem && load_zone_center("data/input/dem.txt", &zone_lat, &zone_lon);
 
     /* --- fenêtre --- */
+    load_settings();                                    /* langue et unités choisies à la dernière session */
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
-    InitWindow(1440, 860 + TOP_H, "Selene " SELENE_VERSION " - Planificateur de site lunaire");
+    InitWindow(1440, 860 + TOP_H, TextFormat("Selene %s - %s", SELENE_VERSION, TR("Planificateur de site lunaire")));
     /* --- Icône de la fenêtre et logo du panneau (data/logo.png, optionnel) --- */
     Texture2D logo_tex = {0};
     if (FileExists("data/logo.png")) {
@@ -2179,6 +2406,7 @@ int main(void) {
             if (ctrl && IsKeyPressed(KEY_FOUR)) act = A_TAB3;
             if (ctrl && IsKeyPressed(KEY_E)) act = A_EXPORT;
             if (ctrl && IsKeyPressed(KEY_N)) act = A_NEWPT;
+            if (ctrl && IsKeyPressed(KEY_COMMA)) act = A_PREFS;
             if (IsKeyPressed(KEY_F1)) act = A_HELP;
             if (IsKeyPressed(KEY_F2)) act = A_RENAME;
             if (IsKeyPressed(KEY_F11)) act = A_FULLSCREEN;
@@ -2244,6 +2472,7 @@ int main(void) {
                 toast(g_csv_fr ? "Export CSV : format Excel français (; et virgule)." : "Export CSV : format international (, et point).");
                 break;
             case A_DIAG: diag_scan(); g_dialog = 4; break;
+            case A_PREFS: lang_scan(); g_dialog = 7; break;
             case A_HELP: g_dialog = 1; g_dialog_page = 0; break;
             case A_SHORTCUTS: g_dialog = 2; break;
             case A_ABOUT: g_dialog = 3; break;
@@ -2469,7 +2698,7 @@ int main(void) {
                 }
                 if (snapped >= 0) {
                     gpick_lat = POIS[snapped].lat; gpick_lon = POIS[snapped].lon; gpick_valid = 1;
-                    snprintf(gpick_name, sizeof gpick_name, "%s", POIS[snapped].name);
+                    snprintf(gpick_name, sizeof gpick_name, "%s", TR(POIS[snapped].name));
                 } else {
                     RayCollision hit = GetRayCollisionSphere(ray, (Vector3){0, 0, 0}, GLOBE_R);
                     if (hit.hit) {
@@ -2648,7 +2877,7 @@ int main(void) {
         if (!gm) {
             DrawRectangleRec(zo, (Color){16, 21, 28, 215});
             bool can_zoom = cur_site >= 0 || zone_valid;
-            const char *zl = site_ready ? TextFormat("Zone : %.1f km", GW * cell_m / 1000.0f) : TextFormat("Zone : x%.1f", zfac[zlev]);
+            const char *zl = site_ready ? TextFormat("Zone : %s", fmt_dist_m(GW * cell_m)) : TextFormat("Zone : x%.1f", zfac[zlev]);
             DrawText(zl, (int)(zo.x + zo.width / 2) - MeasureText(zl, 16) / 2, (int)zo.y + 7, 16, can_zoom ? C_TXT : C_MUT);
             if (ui_button((Rectangle){zo.x + 4, zo.y + 3, 34, 24}, "-", false) && can_zoom && zlev > 0) { zlev--; pending_load = cur_site; }
             if (ui_button((Rectangle){zo.x + zo.width - 38, zo.y + 3, 34, 24}, "+", false) && can_zoom && zlev < 4) { zlev++; pending_load = cur_site; }
@@ -2672,11 +2901,11 @@ int main(void) {
             DrawText("Selene", 18, (int)y, 26, C_TXT);
         }
         y += 34;
-        if (gm) { DrawText("Lune entière  |  rayon 1737 km", 18, (int)y, 14, C_MUT); y += 26; }
+        if (gm) { DrawText(TextFormat("Lune entière  |  rayon %s", fmt_dist_km(1737.4)), 18, (int)y, 14, C_MUT); y += 26; }
         else if (site_ready) {
             float side = GW * cell_m / 1000.0f;
-            DrawText(TextFormat("Carré de %.1f x %.1f km (%.0f km²)", side, side, side * side), 18, (int)y, 14, C_MUT); y += 18;
-            DrawText(TextFormat("Cellule : %.0f m  |  relief x%.1f", cell_m, eff_exag), 18, (int)y, 14, C_MUT); y += 24;
+            DrawText(TextFormat("Carré de %s x %s (%s)", fmt_dist_km(side), fmt_dist_km(side), fmt_area_km2(side * side)), 18, (int)y, 14, C_MUT); y += 18;
+            DrawText(TextFormat("Cellule : %s  |  relief x%.1f", fmt_dist_m(cell_m), eff_exag), 18, (int)y, 14, C_MUT); y += 24;
         } else y += 26;
 
         /* 4 onglets : Globe | Site | Sol | Analyse */
@@ -2725,18 +2954,18 @@ int main(void) {
                     DrawText("Phase de la Lune à cette date", 18, (int)y, 13, C_MUT); y += 18;
                     draw_gradient_legend(18, (int)y, 274, 1, "nuit", "plein jour"); y += 36;
                 } else if (gfilter >= 2) {
-                    DrawText(TextFormat("Moyenne : %.0f m   |   écart-type : %.0f m", g_topo_mean, g_topo_std), 18, (int)y, 13, C_TXT); y += 18;
-                    DrawText(TextFormat("Minimum : %.0f m   |   maximum : %.0f m", g_topo_min, g_topo_max), 18, (int)y, 13, C_MUT); y += 22;
+                    DrawText(TextFormat("Moyenne : %s   |   écart-type : %s", fmt_alt_m(g_topo_mean), fmt_alt_m(g_topo_std)), 18, (int)y, 13, C_TXT); y += 18;
+                    DrawText(TextFormat("Minimum : %s   |   maximum : %s", fmt_alt_m(g_topo_min), fmt_alt_m(g_topo_max)), 18, (int)y, 13, C_MUT); y += 22;
                     if (gfilter == 2) {
                         DrawText("Altitude (échelle : moyenne ± 3 écarts-types)", 18, (int)y, 13, C_MUT); y += 18;
-                        draw_gradient_legend(18, (int)y, 274, 2, TextFormat("%.1f km", g_topo_lo / 1000.0), TextFormat("%.1f km", g_topo_hi / 1000.0));
+                        draw_gradient_legend(18, (int)y, 274, 2, fmt_alt_m(g_topo_lo), fmt_alt_m(g_topo_hi));
                     } else if (gfilter == 3) {
                         DrawText("Écart à l'altitude moyenne, en écarts-types", 18, (int)y, 13, C_MUT); y += 18;
                         draw_gradient_legend(18, (int)y, 274, 3, "-3 (bas)", "+3 (haut)");
                         DrawText("moyenne", 18 + 137 - MeasureText("moyenne", 12) / 2, (int)y + 13, 12, C_MUT);
                     } else {
                         DrawText("Rugosité : écart-type local des altitudes", 18, (int)y, 13, C_MUT); y += 18;
-                        draw_gradient_legend(18, (int)y, 274, 4, "lisse", TextFormat("%.0f m", g_rough_hi));
+                        draw_gradient_legend(18, (int)y, 274, 4, "lisse", fmt_alt_m(g_rough_hi));
                     }
                     y += 36;
                 }
@@ -2756,7 +2985,7 @@ int main(void) {
                     int gj = (int)Clamp(roundf((90.0f - gpick_lat) / 180.0f * GLAT), 0, GLAT);
                     DrawText(gpick_name[0] ? TextFormat("Point marqué : %s", gpick_name) : "Point marqué", 18, (int)y, 16, C_TXT); y += 22;
                     DrawText(TextFormat("lat %.3f   lon %.3f", gpick_lat, gpick_lon), 18, (int)y, 14, C_MUT); y += 20;
-                    DrawText(TextFormat("Altitude : %.0f m", g_h[gj * (GLON + 1) + gi]), 18, (int)y, 14, C_MUT); y += 24;
+                    DrawText(TextFormat("Altitude : %s", fmt_alt_m(g_h[gj * (GLON + 1) + gi])), 18, (int)y, 14, C_MUT); y += 24;
                     if (ui_button((Rectangle){18, y, 274, 28}, "Enregistrer ce point", false)) {
                         if (npts < MAX_PTS) {
                             snprintf(pts[npts].id, sizeof pts[npts].id, "P%d", next_id++);
@@ -2766,7 +2995,7 @@ int main(void) {
                             npts++;
                             save_points();
                             status_msg[0] = 0;
-                        } else snprintf(status_msg, sizeof status_msg, "Maximum de %d points atteint", MAX_PTS);
+                        } else snprintf(status_msg, sizeof status_msg, TR("Maximum de %d points atteint"), MAX_PTS);
                     }
                     y += 34;
                 } else {
@@ -2877,7 +3106,7 @@ int main(void) {
                     if (rk.start_day > 365.0f - rk.days) rk.start_day = 365.0f - rk.days;
                     if (rk.start_day < 0.0f) rk.start_day = 0.0f;
                     if (rk.rad_km > 0.5f * side) rk.rad_km = 0.5f * side;
-                    ui_slider(18, y, 274, "Rayon de recherche", &rk.rad_km, 0.5f, 0.5f * side, TextFormat("%.1f km", rk.rad_km)); y += 40;
+                    ui_slider(18, y, 274, "Rayon de recherche", &rk.rad_km, 0.5f, 0.5f * side, fmt_dist_km(rk.rad_km)); y += 40;
                     ui_slider(18, y, 274, "Durée de la mission", &rk.days, 2.0f, 30.0f, TextFormat("%.0f j", rk.days)); y += 40;
                     ui_slider(18, y, 274, "Début de la mission", &rk.start_day, 0.0f, 365.0f - rk.days, date_label(rk.start_day)); y += 42;
                     if (ui_button((Rectangle){18, y, 86, 26}, "Survie", false)) { float v[5] = {10, 3, 10, 4, 1}; memcpy(rk.w, v, sizeof v); }
@@ -2898,17 +3127,17 @@ int main(void) {
                         if (psr_count == 0) { DrawText("Aucune ombre permanente dans cette zone.", 18, (int)y - 6, 12, C_MUT); y += 12; }
                     } else {
                         ui_slider(18, y, 274, "Pente maximale", &rk.smax, 2, 25, TextFormat("%.0f°", rk.smax)); y += 38;
-                        ui_slider(18, y, 274, "Rugosité maximale", &rk.sigma, 2, 60, TextFormat("%.0f m", rk.sigma)); y += 38;
+                        ui_slider(18, y, 274, "Rugosité maximale", &rk.sigma, 2, 60, fmt_alt_m(rk.sigma)); y += 38;
                         ui_slider(18, y, 274, "Nuit continue maximale", &rk.night, 24, 400, TextFormat("%.0f h", rk.night)); y += 38;
-                        ui_slider(18, y, 274, "Ellipse d'atterrissage", &rk.ell, 0, 1000, TextFormat("%.0f m", rk.ell)); y += 38;
-                        ui_slider(18, y, 274, "Distance min. entre sites", &rk.excl_km, 0.5f, 5, TextFormat("%.1f km", rk.excl_km)); y += 38;
+                        ui_slider(18, y, 274, "Ellipse d'atterrissage", &rk.ell, 0, 1000, fmt_dist_m(rk.ell)); y += 38;
+                        ui_slider(18, y, 274, "Distance min. entre sites", &rk.excl_km, 0.5f, 5, fmt_dist_km(rk.excl_km)); y += 38;
                     }
                     if (ui_button((Rectangle){18, y, 274, 28}, "Meilleure date pour cette zone", false)) {
                         ensure_terrain(rk.ell);
                         Params Pb = rk_params(&rk);
                         int bd = best_start_region(&Pb, rk.cx, rk.cy, rk.rad_km * 1000.0);
                         if (bd >= 0) { rk.start_day = bd / 4.0f; rk.msg[0] = 0; }
-                        else snprintf(rk.msg, sizeof rk.msg, "Aucune date valide avec ces contraintes (voir ci-dessous).");
+                        else snprintf(rk.msg, sizeof rk.msg, "%s", TR("Aucune date valide avec ces contraintes (voir ci-dessous)."));
                     }
                     y += 34;
                     if (rk.msg[0]) { DrawText(TextSubtext(rk.msg, 0, 42), 18, (int)y, 13, C_BAD); y += 16; }
@@ -2926,14 +3155,14 @@ int main(void) {
                         float wmax = 0.0f;
                         for (int b = 0; b < 4; b++) {
                             float pc = st_eval ? 100.0f * st_fail[b] / st_eval : 0.0f;
-                            if (pc >= 0.5f) { DrawText(TextFormat("%s : %.0f %% des cases", why[b], pc), 18, (int)y, 13, C_MUT); y += 16; }
+                            if (pc >= 0.5f) { DrawText(TextFormat("%s : %.0f %% des cases", TR(why[b]), pc), 18, (int)y, 13, C_MUT); y += 16; }
                             if (pc > wmax) { wmax = pc; worst = b; }
                         }
                         if (worst == 3 && rk.days > 14.0f) { DrawText("Au-delà de 15 j, une nuit lunaire (~350 h)", 18, (int)y, 13, C_MUT); y += 15;
                                                              DrawText("est inévitable : réduisez la durée ou la limite.", 18, (int)y, 13, C_MUT); y += 18; }
                         y += 4;
                         if (worst == 0 && ui_button((Rectangle){18, y, 274, 26}, "Autoriser pente jusqu'à 25°", false)) rk.smax = 25.0f;
-                        if (worst == 1 && ui_button((Rectangle){18, y, 274, 26}, "Autoriser rugosité jusqu'à 60 m", false)) rk.sigma = 60.0f;
+                        if (worst == 1 && ui_button((Rectangle){18, y, 274, 26}, TextFormat("Autoriser rugosité jusqu'à %s", fmt_alt_m(60)), false)) rk.sigma = 60.0f;
                         if (worst == 2 && ui_button((Rectangle){18, y, 274, 26}, "Activer le relais de communication", false)) rk.relay = 1;
                         if (worst == 3 && ui_button((Rectangle){18, y, 274, 26}, "Autoriser nuit jusqu'à 400 h", false)) rk.night = 400.0f;
                         if (worst >= 0) y += 34;
@@ -2997,7 +3226,7 @@ int main(void) {
                     DrawText(TextFormat("Plus longue coupure radio : %.1f j", longest_run_days(earthv, k, 0)), 18, (int)y, 16, C_TXT); y += 26;
                     if (eng) {
                         DrawText(TextFormat("Cellule (x, y) : %d, %d", site.x, site.y), 18, (int)y, 14, C_MUT); y += 20;
-                        DrawText(TextFormat("Altitude : %.0f m   Pente : %.1f°", dem[k], slope_deg[k]), 18, (int)y, 14, C_MUT); y += 20;
+                        DrawText(TextFormat("Altitude : %s   Pente : %.1f°", fmt_alt_m(dem[k]), slope_deg[k]), 18, (int)y, 14, C_MUT); y += 20;
                         DrawText(TextFormat("Soleil az/él : %.0f° / %.1f°", cur_sa, cur_se), 18, (int)y, 14, C_MUT); y += 20;
                         DrawText(TextFormat("Terre az/él : %.0f° / %.1f°", cur_ea, cur_ee), 18, (int)y, 14, C_MUT); y += 26;
                     }
@@ -3112,8 +3341,8 @@ int main(void) {
                 pts[npts].lat = rk.c[i].lat; pts[npts].lon = rk.c[i].lon;
                 npts++;
                 save_points();
-                snprintf(rk.note, sizeof rk.note, "Site %d enregistré : point %s (voir l'onglet Globe).", i + 1, pts[npts - 1].id);
-            } else snprintf(rk.note, sizeof rk.note, "Impossible : %d points enregistrés au maximum.", MAX_PTS);
+                snprintf(rk.note, sizeof rk.note, TR("Site %d enregistré : point %s (voir l'onglet Globe)."), i + 1, pts[npts - 1].id);
+            } else snprintf(rk.note, sizeof rk.note, TR("Impossible : %d points enregistrés au maximum."), MAX_PTS);
         }
         rlPopMatrix();
         SetMouseOffset(0, 0);                              /* barre de menus, notifications et dialogues : coordonnées d'écran réelles */
@@ -3152,6 +3381,7 @@ int main(void) {
         mi(&menus[3], "-", NULL, A_NONE, 0);
         mi(&menus[3], g_csv_fr ? "Format CSV : Excel FR (passer en international)" : "Format CSV : international (passer en Excel FR)", NULL, A_CSV_FMT, 1);
         mi(&menus[3], "-", NULL, A_NONE, 0);
+        mi(&menus[3], "Préférences (langue, unités)...", "Ctrl+,", A_PREFS, 1);
         mi(&menus[3], "Vérifier l'installation...", NULL, A_DIAG, 1);
         menus[4].title = "Aide";
         mi(&menus[4], "Guide d'utilisation", "F1", A_HELP, 1);

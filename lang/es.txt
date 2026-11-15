@@ -1,0 +1,428 @@
+#name=Español
+Mer de la Tranquillité	Mar de la Tranquilidad
+Mer de la Sérénité	Mar de la Serenidad
+Mer des Crises	Mar de las Crisis
+Mer de la Fécondité	Mar de la Fecundidad
+Mer des Pluies	Mar de las Lluvias
+Mer des Nuées	Mar de las Nubes
+Océan des Tempêtes	Océano de las Tormentas
+Mer du Froid	Mar del Frío
+Mer des Humeurs	Mar de las Humedades
+Mer Orientale	Mar Oriental
+Copernic	Copérnico
+Aristarque	Aristarco
+Platon	Platón
+Bassin Pôle Sud-Aitken	Cuenca Polo Sur-Aitken
+Reliefs	Relieves
+Pôle Sud	Polo Sur
+Pôle Nord	Polo Norte
+Outil de préparation introuvable (voir Aide > Vérifier l'installation).	Herramienta de preparación no encontrada (ver Ayuda > Comprobar la instalación).
+Point : %s	Punto: %s
+janv.	ene
+févr.	feb
+mars	mar
+avr.	abr
+mai	may
+juin	jun
+juil.	jul
+août	ago
+sept.	sep
+oct.	oct
+nov.	nov
+déc.	dic
+excellent	excelente
+bon	bueno
+moyen	medio
+faible	bajo
+hors zone étudiée	fuera de la zona estudiada
+hors zone etudiee	fuera de la zona estudiada
+nuit trop longue	noche demasiado larga
+Terre jamais visible	Tierra nunca visible
+pente trop forte	pendiente demasiado fuerte
+terrain rugueux	terreno rugoso
+Classement des sites	Clasificación de sitios
+Point choisi (clic sur le terrain) : %.2f, %.2f	Punto elegido (clic en el terreno): %.2f, %.2f
+Note %.0f / 100   (%s)	Nota %.0f / 100   (%s)
+Éliminé : %s	Descartado: %s
+Aucun site à classer dans cette zone.	Ningún sitio que clasificar en esta zona.
+%.2f, %.2f   Soleil %.0f %%   Terre %.0f %%   nuit %.0f h	%.2f, %.2f   Sol %.0f %%   Tierra %.0f %%   noche %.0f h
+#%d    %.0f / 100    ÉLIMINÉ	#%d    %.0f / 100    DESCARTADO
+Meilleure date : %s  (note %.0f)	Mejor fecha: %s  (nota %.0f)
+Meilleure date : aucune date valide pour ce site	Mejor fecha: ninguna fecha válida para este sitio
+Stabilité : %.0f %%  (30 jeux de poids perturbés de 30 %%)	Estabilidad: %.0f %%  (30 juegos de pesos alterados un 30 %%)
+Stabilité : calculée au relâchement du curseur	Estabilidad: se calcula al soltar el control deslizante
+Stabilité : sans objet (site éliminé)	Estabilidad: no aplica (sitio descartado)
+critère	criterio
+sous-note (0 à 1)	subnota (0 a 1)
+poids	peso
+Énergie	Energía
+Thermique*	Térmico*
+Science (ignorée)	Ciencia (ignorada)
+pente %.1f°   rugosité %s   marge Terre %.1f°	pendiente %.1f°   rugosidad %s   margen Tierra %.1f°
+Garder ce site comme point enregistré	Guardar este sitio como punto registrado
+Note = moyenne géométrique pondérée des 5 critères (poids = curseurs).	Nota = media geométrica ponderada de los 5 criterios (pesos = controles).
+* Thermique : cycles lumière/ombre, ce n'est pas une température.	* Térmico: ciclos de luz/sombra, no es una temperatura.
+Impossible d'écrire dans le dossier exports/	No se puede escribir en la carpeta exports/
+rang	rango
+note_sur_100	nota_sobre_100
+valide	valido
+raison_elimination	motivo_descarte
+altitude_m	altitud_m
+pente_deg	pendiente_grados
+rugosite_m	rugosidad_m
+soleil_pct	sol_pct
+terre_pct	tierra_pct
+nuit_max_h	noche_max_h
+marge_terre_deg	margen_tierra_grados
+note_energie	nota_energia
+note_communication	nota_comunicacion
+note_thermique_indicateur	nota_termica_indicador
+note_terrain	nota_terreno
+note_science	nota_ciencia
+meilleur_debut	mejor_inicio
+note_au_meilleur_debut	nota_en_mejor_inicio
+stabilite_pct	estabilidad_pct
+pente_pire_cas_ellipse_deg	pendiente_peor_caso_elipse_grados
+ombre_permanente	sombra_permanente
+dans_zone_recherche	en_zona_busqueda
+pas_6h	paso_6h
+date_heure_utc	fecha_hora_utc
+soleil_visible_pct	sol_visible_pct
+terre_visible_pct	tierra_visible_pct
+parametre	parametro
+valeur	valor
+logiciel	software
+date_export	fecha_exportacion
+zone initiale	zona inicial
+latitude_point_central	latitud_punto_central
+longitude_point_central	longitud_punto_central
+taille_zone_km	tamano_zona_km
+taille_cellule_m	tamano_celda_m
+rayon_recherche_km	radio_busqueda_km
+duree_mission_jours	duracion_mision_dias
+debut_mission	inicio_mision
+poids_energie	peso_energia
+poids_communication	peso_comunicacion
+poids_thermique	peso_termico
+poids_terrain	peso_terreno
+poids_science	peso_ciencia
+critere_science_ignore	criterio_ciencia_ignorado
+pente_max_deg	pendiente_max_grados
+rugosite_max_m	rugosidad_max_m
+nuit_continue_max_h	noche_continua_max_h
+ellipse_atterrissage_m	elipse_aterrizaje_m
+distance_min_entre_sites_km	distancia_min_entre_sitios_km
+relais_disponible	rele_disponible
+cases_etudiees	celdas_estudiadas
+cases_valides	celdas_validas
+elimination_pente_pct	descarte_pendiente_pct
+elimination_rugosite_pct	descarte_rugosidad_pct
+elimination_terre_pct	descarte_tierra_pct
+elimination_nuit_pct	descarte_noche_pct
+cases_ombre_permanente	celdas_sombra_permanente
+%d fichiers écrits dans exports/ (%s_...)	%d archivos escritos en exports/ (%s_...)
+Latitude invalide : un nombre entre -90 et 90 (ex. -89,9 ou 89.9 S).	Latitud no válida: un número entre -90 y 90 (p. ej. -89,9 o 89.9 S).
+Longitude invalide : un nombre entre -180 et 360 (ex. 45 ou 120 O).	Longitud no válida: un número entre -180 y 360 (p. ej. 45 o 120 O).
+PRISE EN MAIN	PRIMEROS PASOS
+1.  Onglet GLOBE : tournez la Lune (glisser), zoomez (molette), cliquez pour marquer un point,	1.  Pestaña GLOBO: gira la Luna (arrastrar), acerca (rueda), haz clic para marcar un punto,
+     puis « Enregistrer ce point », ou saisissez des coordonnées (Fichier > Nouveau point, Ctrl+N).	     luego «Guardar este punto», o introduce coordenadas (Archivo > Nuevo punto, Ctrl+N).
+     Filtres : luminosité à une date, topographie (altitude, écart à la moyenne, rugosité), points d'intérêt.	     Filtros: iluminación en una fecha, topografía (altitud, desviación de la media, rugosidad), puntos de interés.
+     Cliquez sur le nom d'un point pour le renommer.	     Haz clic en el nombre de un punto para renombrarlo.
+2.  Bouton « Site » à côté d'un point : ouvre le relief détaillé autour de ce point.	2.  Botón «Sitio» junto a un punto: abre el relieve detallado alrededor de ese punto.
+     Si la zone n'est pas encore préparée, cliquez sur « Préparer cette zone » (quelques secondes).	     Si la zona aún no está preparada, haz clic en «Preparar esta zona» (unos segundos).
+3.  Onglet SITE : le Soleil et la Terre sont-ils visibles ? sur 30 jours, avec la pente du terrain.	3.  Pestaña SITIO: ¿son visibles el Sol y la Tierra? Durante 30 días, con la pendiente del terreno.
+     Les boutons - et + (en haut à droite) agrandissent ou réduisent la zone étudiée.	     Los botones - y + (arriba a la derecha) agrandan o reducen la zona estudiada.
+4.  Onglet SOL : la vue à 360° depuis le point choisi, avec le Soleil et la Terre dans le ciel.	4.  Pestaña SUELO: la vista de 360° desde el punto elegido, con el Sol y la Tierra en el cielo.
+5.  Onglet ANALYSE : classe automatiquement des sites d'atterrissage autour d'un point.	5.  Pestaña ANÁLISIS: clasifica automáticamente sitios de aterrizaje alrededor de un punto.
+TERMES UTILES	TÉRMINOS ÚTILES
+-  Nuit lunaire : environ 14,8 jours d'obscurité (350 h) en dehors des pôles.	-  Noche lunar: unos 14,8 días de oscuridad (350 h) fuera de los polos.
+-  Ombre permanente : zone où le Soleil ne se lève jamais, là où l'on peut trouver de la glace.	-  Sombra permanente: zona donde el Sol nunca sale, donde puede haber hielo.
+-  Terre visible : permet une liaison radio directe. Au fond d'un cratère, elle est souvent cachée.	-  Tierra visible: permite un enlace de radio directo. En el fondo de un cráter suele estar oculta.
+Les données viennent du laser altimètre LOLA et de la caméra LROC (sonde NASA LRO).	Los datos proceden del altímetro láser LOLA y de la cámara LROC (sonda LRO de la NASA).
+L'ONGLET ANALYSE	LA PESTAÑA ANÁLISIS
+1.  Cliquez sur « Analyser l'année » (une seule fois par site : le résultat est enregistré).	1.  Haz clic en «Analizar el año» (una sola vez por sitio: el resultado se guarda).
+2.  Cliquez sur le terrain pour choisir le centre de la zone de recherche, réglez le rayon.	2.  Haz clic en el terreno para elegir el centro de la zona de búsqueda y ajusta el radio.
+3.  Réglez la durée de la mission, sa date de début (ou « Meilleure date »), les priorités.	3.  Ajusta la duración de la misión, su fecha de inicio (o «Mejor fecha») y las prioridades.
+4.  Le tableau en haut à gauche de la vue 3D donne les 5 meilleurs sites avec leur note sur 100.	4.  La tabla de arriba a la izquierda de la vista 3D da los 5 mejores sitios con su nota sobre 100.
+5.  Sur la carte : VERT = site valide (plus clair = meilleure note), ROUGE = éliminé, VIOLET = ombre.	5.  En el mapa: VERDE = sitio válido (más claro = mejor nota), ROJO = descartado, VIOLETA = sombra.
+COMMENT LA NOTE EST CALCULÉE	CÓMO SE CALCULA LA NOTA
+Filtres éliminatoires : pente, rugosité du terrain, Terre jamais visible, nuit trop longue.	Filtros eliminatorios: pendiente, rugosidad del terreno, Tierra nunca visible, noche demasiado larga.
+Puis une moyenne pondérée de 5 critères : Énergie, Communication, Thermique*, Terrain, Science.	Después, una media ponderada de 5 criterios: Energía, Comunicación, Térmico*, Terreno, Ciencia.
+Les poids sont les curseurs « Priorités » ; les profils Survie, Glace et Relais les règlent d'un clic.	Los pesos son los controles «Prioridades»; los perfiles Supervivencia, Hielo y Relé los ajustan con un clic.
+* Thermique : indicateur de cycles lumière/ombre, ce n'est pas une température.	* Térmico: indicador de ciclos de luz/sombra, no es una temperatura.
+EXPORT : menu Fichier > Exporter en CSV (4 fichiers dans le dossier exports).	EXPORTACIÓN: menú Archivo > Exportar a CSV (4 archivos en la carpeta exports).
+Limites : relief à 200 m par case (blocs et petits cratères invisibles), un seul mois ou un an modélisé.	Límites: relieve a 200 m por celda (rocas y cráteres pequeños invisibles), solo se modela un mes o un año.
+RACCOURCIS CLAVIER	ATAJOS DE TECLADO
+Ctrl + 1 / 2 / 3 / 4      Globe / Site / Sol / Analyse	Ctrl + 1 / 2 / 3 / 4      Globo / Sitio / Suelo / Análisis
+Ctrl + E                  Exporter le classement en CSV	Ctrl + E                  Exportar la clasificación a CSV
+Ctrl + N                  Nouveau point (saisie de coordonnées)	Ctrl + N                  Nuevo punto (introducir coordenadas)
+Ctrl + ,                  Préférences (langue, unités)	Ctrl + ,                  Preferencias (idioma, unidades)
+F1                        Guide d'utilisation	F1                        Guía de uso
+F2                        Renommer le point actuel	F2                        Renombrar el punto actual
+F11                       Plein écran	F11                       Pantalla completa
+Échap                     Fermer un menu ou une fenêtre, annuler une saisie	Esc                       Cerrar un menú o ventana, cancelar una entrada
+SOURIS	RATÓN
+Glisser                   Tourner la caméra (Globe, Site, Analyse) ou regarder autour (Sol)	Arrastrar                 Girar la cámara (Globo, Sitio, Análisis) o mirar alrededor (Suelo)
+Molette                   Zoom (Globe, Site, Analyse) ; défilement du panneau (Analyse)	Rueda                     Zoom (Globo, Sitio, Análisis); desplazar el panel (Análisis)
+Clic                      Marquer un point (Globe), choisir un site (Site, Analyse)	Clic                      Marcar un punto (Globo), elegir un sitio (Sitio, Análisis)
+SELENE  -  planificateur de site d'atterrissage lunaire	SELENE  -  planificador de sitios de aterrizaje lunar
+Projet réalisé pour le NASA Space Apps Challenge 2026.	Proyecto realizado para el NASA Space Apps Challenge 2026.
+Données : NASA / LRO (altimètre LOLA, caméra LROC), domaine public.	Datos: NASA / LRO (altímetro LOLA, cámara LROC), dominio público.
+Éphémérides : modèle analytique de Jean Meeus (Astronomical Algorithms), hors ligne.	Efemérides: modelo analítico de Jean Meeus (Astronomical Algorithms), sin conexión.
+Interface : raylib (licence zlib). Compression : sdefl / sinfl (domaine public).	Interfaz: raylib (licencia zlib). Compresión: sdefl / sinfl (dominio público).
+Les résultats sont des estimations pour la démonstration :	Los resultados son estimaciones de demostración:
+ils ne remplacent pas une étude de mission.	no sustituyen a un estudio de misión.
+Guide d'utilisation	Guía de uso
+Raccourcis clavier	Atajos de teclado
+À propos de Selene	Acerca de Selene
+Vérification de l'installation	Comprobación de la instalación
+Supprimer tous les points ?	¿Eliminar todos los puntos?
+Nouveau point : saisie des coordonnées	Nuevo punto: introducir coordenadas
+Globe lunaire (relief et couleurs)	Globo lunar (relieve y colores)
+Manquant : lancez tools/prepare_globe.py une fois (voir LISEZMOI.txt).	Falta: ejecuta tools/prepare_globe.py una vez (ver LISEZMOI.txt).
+Outil de préparation des sites	Herramienta de preparación de sitios
+Python détecté : tools/prepare_data.py	Python detectado: tools/prepare_data.py
+Manquant : placez tools/prepare_data.exe, ou installez Python + rasterio.	Falta: coloca tools/prepare_data.exe, o instala Python + rasterio.
+Relief LOLA du pôle Sud (80 m par pixel)	Relieve LOLA del polo sur (80 m por píxel)
+Absent : placez LDEM_80S_80MPP_ADJ.tiff dans le dossier data/source.	Ausente: coloca LDEM_80S_80MPP_ADJ.tiff en la carpeta data/source.
+Relief LOLA mondial (hors pôle Sud)	Relieve LOLA global (fuera del polo sur)
+Absent : placez ldem_64 ou LDEM128 (.tif) dans le dossier data/source.	Ausente: coloca ldem_64 o LDEM128 (.tif) en la carpeta data/source.
+%d site(s) déjà préparé(s) sur %d point(s) enregistré(s)	%d sitio(s) ya preparado(s) de %d punto(s) registrado(s)
+Les sites préparés s'ouvrent sans aucune installation supplémentaire.	Los sitios preparados se abren sin ninguna instalación adicional.
+Sans les fichiers de relief, vous pouvez quand même utiliser tous les sites déjà préparés.	Sin los archivos de relieve, aún puedes usar todos los sitios ya preparados.
+Ouvrir le dossier des données	Abrir la carpeta de datos
+Latitude  (de -90 à 90, ex. -89,9  ou  89.9 S)	Latitud  (de -90 a 90, p. ej. -89,9  o  89.9 S)
+Longitude  (Est positif, ex. 45  ou  120 O)	Longitud  (Este positivo, p. ej. 45  o  120 O)
+Nom du point  (facultatif)	Nombre del punto  (opcional)
+Entrée : enregistrer   |   Tab : champ suivant   |   Échap : annuler	Intro: guardar   |   Tab: campo siguiente   |   Esc: cancelar
+%d point(s) enregistré(s) vont être retirés de la liste et du globe.	%d punto(s) registrado(s) se quitarán de la lista y del globo.
+Les sites déjà préparés restent sur le disque (aucun fichier n'est effacé).	Los sitios ya preparados permanecen en el disco (no se borra ningún archivo).
+Cette action est définitive.	Esta acción es definitiva.
+Précédent	Anterior
+Suivant	Siguiente
+Annuler	Cancelar
+Tout supprimer	Eliminar todo
+Marquer seulement	Solo marcar
+Enregistrer	Guardar
+Fermer	Cerrar
+Planificateur de site lunaire	Planificador de sitios lunares
+Dossier « data » introuvable à côté de selene.exe : données fictives. Placez selene.exe dans le dossier du projet.	Carpeta «data» no encontrada junto a selene.exe: datos ficticios. Coloca selene.exe en la carpeta del proyecto.
+Éclairement solaire	Iluminación solar
+Visibilité de la Terre	Visibilidad de la Tierra
+Altitude	Altitud
+Pente	Pendiente
+Globe indisponible : voir Aide > Vérifier l'installation.	Globo no disponible: ver Ayuda > Comprobar la instalación.
+Ouvrez l'onglet Analyse et lancez l'analyse avant d'exporter.	Abre la pestaña Análisis y lanza el análisis antes de exportar.
+Sélectionnez d'abord un point enregistré (onglet Globe, bouton « Site »).	Selecciona primero un punto registrado (pestaña Globo, botón «Sitio»).
+Point supprimé.	Punto eliminado.
+Aucun point enregistré n'est sélectionné.	No hay ningún punto registrado seleccionado.
+Réglages du classement réinitialisés.	Ajustes de la clasificación restablecidos.
+Choisissez d'abord un point enregistré (onglet Globe).	Elige primero un punto registrado (pestaña Globo).
+Ce site doit être re-préparé (Outils > Préparer / re-préparer).	Este sitio debe volver a prepararse (Herramientas > Preparar / volver a preparar).
+Analyse enregistrée supprimée pour ce site.	Análisis guardado eliminado para este sitio.
+Aucune analyse enregistrée pour ce site.	No hay análisis guardado para este sitio.
+Export CSV : format Excel français (; et virgule).	Exportación CSV: formato Excel francés (; y coma).
+Export CSV : format international (, et point).	Exportación CSV: formato internacional (, y punto).
+Aucun point à supprimer.	No hay ningún punto que eliminar.
+Point « %s » enregistré (%.3f, %.3f).	Punto «%s» guardado (%.3f, %.3f).
+Maximum de points atteint : supprimez-en un d'abord.	Se alcanzó el máximo de puntos: elimina uno primero.
+Point marqué : %.3f, %.3f.	Punto marcado: %.3f, %.3f.
+%d point(s) supprimé(s).	%d punto(s) eliminado(s).
+Préparation du site (quelques secondes)...	Preparando el sitio (unos segundos)...
+Chargement du site (calcul de l'éclairement)...	Cargando el sitio (calculando la iluminación)...
+Chargement de l'analyse enregistrée...	Cargando el análisis guardado...
+Analyse de l'année complète (quelques secondes)...	Analizando el año completo (unos segundos)...
+Soleil (%.1f°)	Sol (%.1f°)
+Soleil (masqué)	Sol (oculto)
+Terre (%.1f°)	Tierra (%.1f°)
+Terre (masquée)	Tierra (oculta)
+Vert : site valide (plus clair = meilleure note)  |  Rouge : éliminé par un filtre  |  Violet : ombre permanente	Verde: sitio válido (más claro = mejor nota)  |  Rojo: descartado por un filtro  |  Violeta: sombra permanente
+Site non préparé	Sitio no preparado
+Zone : %s	Zona: %s
+Zone : x%.1f	Zona: x%.1f
+Glisser = tourner  |  molette = zoom  |  clic = marquer un point	Arrastrar = girar  |  rueda = zoom  |  clic = marcar un punto
+Glisser = regarder autour (360°)  |  relief réel x1	Arrastrar = mirar alrededor (360°)  |  relieve real x1
+Clic = centre de la zone de recherche  |  cercle jaune = rayon  |  chiffres = sites candidats	Clic = centro de la zona de búsqueda  |  círculo amarillo = radio  |  números = sitios candidatos
+Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site	Rojo: pendiente por encima del umbral  |  arrastrar = girar, rueda = zoom, clic = elegir un sitio
+Lune entière  |  rayon %s	Luna entera  |  radio %s
+Carré de %s x %s (%s)	Cuadrado de %s x %s (%s)
+Cellule : %s  |  relief x%.1f	Celda: %s  |  relieve x%.1f
+Sol	Suelo
+Analyse	Análisis
+Globe indisponible.	Globo no disponible.
+Lancez tools/prepare_globe.py	Ejecuta tools/prepare_globe.py
+Exagération du relief	Exageración del relieve
+Filtres du globe	Filtros del globo
+Aucun	Ninguno
+Luminosité	Iluminación
+Écart moyenne	Desv. media
+Rugosité	Rugosidad
+Lecture	Reproducir
+Phase de la Lune à cette date	Fase de la Luna en esta fecha
+nuit	noche
+plein jour	pleno día
+Moyenne : %s   |   écart-type : %s	Media: %s   |   desv. típica: %s
+Minimum : %s   |   maximum : %s	Mínimo: %s   |   máximo: %s
+Altitude (échelle : moyenne ± 3 écarts-types)	Altitud (escala: media ± 3 desviaciones típicas)
+Écart à l'altitude moyenne, en écarts-types	Desviación respecto a la altitud media, en desviaciones típicas
+-3 (bas)	-3 (bajo)
++3 (haut)	+3 (alto)
+moyenne	media
+Rugosité : écart-type local des altitudes	Rugosidad: desviación típica local de las altitudes
+lisse	lisa
+Points d'intérêt	Puntos de interés
+Zoomez pour voir les noms, cliquez pour marquer.	Acerca para ver los nombres, haz clic para marcar.
+Point marqué : %s	Punto marcado: %s
+Point marqué	Punto marcado
+Altitude : %s	Altitud: %s
+Enregistrer ce point	Guardar este punto
+Maximum de %d points atteint	Máximo de %d puntos alcanzado
+Cliquez sur la Lune pour marquer un point.	Haz clic en la Luna para marcar un punto.
+Saisir des coordonnées...	Introducir coordenadas...
+Points enregistrés	Puntos guardados
+Tout effacer	Borrar todo
+Aucun pour l'instant.	Ninguno por ahora.
+(cliquez sur un nom pour le modifier)	(haz clic en un nombre para modificarlo)
+Zone initiale : %.1f, %.1f (gris)	Zona inicial: %.1f, %.1f (gris)
+Relief LOLA et couleurs LRO (NASA)	Relieve LOLA y colores LRO (NASA)
+Zone x%.1f non préparée.	Zona x%.1f no preparada.
+Préparer cette zone	Preparar esta zona
+Hors ligne : nécessite Python et un fichier LDEM.	Sin conexión: requiere Python y un archivo LDEM.
+DEM : LOLA polaire (80 m)	DEM: LOLA polar (80 m)
+DEM : mondial (ldem_64)	DEM: global (ldem_64)
+Zone initiale : taille non modifiable.	Zona inicial: el tamaño no se puede modificar.
+Classement indisponible.	Clasificación no disponible.
+Ce site a une ancienne préparation.	Este sitio tiene una preparación antigua.
+Il faut les fichiers année + repères.	Hacen falta los archivos de año + referencias.
+Re-préparer ce site	Volver a preparar este sitio
+Analyse annuelle requise (~ 5 s).	Análisis anual necesario (~ 5 s).
+Soleil et Terre vus de chaque case,	Sol y Tierra vistos desde cada celda,
+sur une année entière, relief inclus.	durante un año entero, relieve incluido.
+Analyser l'année	Analizar el año
+Rayon de recherche	Radio de búsqueda
+Durée de la mission	Duración de la misión
+Début de la mission	Inicio de la misión
+Survie	Superv.
+Glace	Hielo
+Relais	Relevo
+Relais disponible : oui	Relevo disponible: sí
+Relais disponible : non	Relevo disponible: no
+Priorités	Prioridades
+Contraintes	Restricciones
+Énergie (Soleil)	Energía (Sol)
+Communication (Terre)	Comunicación (Tierra)
+Stabilité thermique*	Estabilidad térmica*
+Sécurité du terrain	Seguridad del terreno
+Intérêt scientifique (glace)	Interés científico (hielo)
+ignoré	ignorado
+Aucune ombre permanente dans cette zone.	No hay sombra permanente en esta zona.
+Pente maximale	Pendiente máxima
+Rugosité maximale	Rugosidad máxima
+Nuit continue maximale	Noche continua máxima
+Ellipse d'atterrissage	Elipse de aterrizaje
+Distance min. entre sites	Dist. mín. entre sitios
+Meilleure date pour cette zone	Mejor fecha para esta zona
+Aucune date valide avec ces contraintes (voir ci-dessous).	Ninguna fecha válida con estas restricciones (ver abajo).
+Résultats	Resultados
+Cases valides à cette date : %.0f %%	Celdas válidas en esta fecha: %.0f %%
+Aucun site valide à cette date.	Ningún sitio válido en esta fecha.
+(le tableau montre les meilleurs sites éliminés)	(la tabla muestra los mejores sitios descartados)
+terrain trop rugueux	terreno demasiado rugoso
+%s : %.0f %% des cases	%s: %.0f %% de las celdas
+Au-delà de 15 j, une nuit lunaire (~350 h)	Pasados 15 d, una noche lunar (~350 h)
+est inévitable : réduisez la durée ou la limite.	es inevitable: reduce la duración o el límite.
+Autoriser pente jusqu'à 25°	Permitir pendiente hasta 25°
+Autoriser rugosité jusqu'à %s	Permitir rugosidad hasta %s
+Activer le relais de communication	Activar el relé de comunicación
+Autoriser nuit jusqu'à 400 h	Permitir noche hasta 400 h
+Le classement et les notes sont dans le	La clasificación y las notas están en la
+tableau en haut à gauche de la vue 3D.	tabla de arriba a la izquierda de la vista 3D.
+Analyse relue depuis le disque (rapide).	Análisis releído del disco (rápido).
+Analyse calculée puis enregistrée sur le disque.	Análisis calculado y guardado en el disco.
+Exporter en CSV	Exportar a CSV
+Format : Excel FR (;)	Formato: Excel FR (;)
+Format : international (,)	Formato: internacional (,)
+Ouvrir dossier	Abrir carpeta
+Couche affichée	Capa mostrada
+Orientation rapide	Orientación rápida
+Viser Soleil	Apuntar al Sol
+Viser Terre	Apuntar a la Tierra
+Mode ingénieur : activé	Modo ingeniero: activado
+Mode ingénieur : désactivé	Modo ingeniero: desactivado
+Date : J+%.1f	Fecha: D+%.1f
+Pente maximale admise	Pendiente máxima admitida
+Exagération verticale	Exageración vertical
+Aucun site sélectionné.	Ningún sitio seleccionado.
+Cliquez sur le terrain.	Haz clic en el terreno.
+Soleil visible : %.0f %%	Sol visible: %.0f %%
+Terre visible : %.0f %%	Tierra visible: %.0f %%
+Plus longue nuit : %.1f j	Noche más larga: %.1f d
+Plus longue coupure radio : %.1f j	Corte de radio más largo: %.1f d
+Cellule (x, y) : %d, %d	Celda (x, y): %d, %d
+Altitude : %s   Pente : %.1f°	Altitud: %s   Pendiente: %.1f°
+Soleil az/él : %.0f° / %.1f°	Sol az/el: %.0f° / %.1f°
+Terre az/él : %.0f° / %.1f°	Tierra az/el: %.0f° / %.1f°
+Pente compatible avec un atterrissage	Pendiente compatible con un aterrizaje
+Pente de %.0f° : trop forte	Pendiente de %.0f°: demasiado fuerte
+Données FICTIVES (terrain et/ou éphémérides)	Datos FICTICIOS (terreno y/o efemérides)
+Géométrie approx.	Geometría aprox.
+Re-préparer	Reprep.
+Soleil	Sol
+Terre	Tierra
+Choisissez un site pour afficher ses fenêtres de lumière et de communication	Elige un sitio para mostrar sus ventanas de luz y de comunicación
+Zone initiale	Zona inicial
+Année complète, site %d  |  fenêtre de mission en blanc  |  clic = choisir le début	Año completo, sitio %d  |  ventana de misión en blanco  |  clic = elegir el inicio
+Site %d enregistré : point %s (voir l'onglet Globe).	Sitio %d guardado: punto %s (ver la pestaña Globo).
+Impossible : %d points enregistrés au maximum.	Imposible: máximo %d puntos guardados.
+Fichier	Archivo
+Nouveau point (coordonnées)...	Nuevo punto (coordenadas)...
+Exporter le classement en CSV	Exportar la clasificación a CSV
+Ouvrir le dossier d'export	Abrir la carpeta de exportación
+Quitter	Salir
+Édition	Edición
+Renommer le point actuel	Renombrar el punto actual
+Supprimer le point actuel	Eliminar el punto actual
+Supprimer tous les points...	Eliminar todos los puntos...
+Réinitialiser les réglages du classement	Restablecer los ajustes de la clasificación
+Affichage	Ver
+Sol (vue à 360°)	Suelo (vista de 360°)
+Zone plus grande	Zona más grande
+Zone plus petite	Zona más pequeña
+Plein écran	Pantalla completa
+Outils	Herramientas
+Préparer / re-préparer le site actuel	Preparar / volver a preparar el sitio actual
+Analyser l'année (onglet Analyse)	Analizar el año (pestaña Análisis)
+Oublier l'analyse enregistrée du site	Olvidar el análisis guardado del sitio
+Format CSV : Excel FR (passer en international)	Formato CSV: Excel FR (cambiar a internacional)
+Format CSV : international (passer en Excel FR)	Formato CSV: internacional (cambiar a Excel FR)
+Vérifier l'installation...	Comprobar la instalación...
+Aide	Ayuda
+Préférences (langue, unités)...	Preferencias (idioma, unidades)...
+Préférences	Preferencias
+Langue de l'interface	Idioma de la interfaz
+Unités de mesure	Unidades de medida
+Métrique (m, km)	Métrico (m, km)
+Impérial (ft, mi)	Imperial (ft, mi)
+Les exports CSV restent toujours en unités métriques (m, km).	Las exportaciones CSV siempre usan unidades métricas (m, km).
+Ajouter une langue : copiez lang/_modele.txt en lang/xx.txt, traduisez la colonne de droite,	Añadir un idioma: copia lang/_modele.txt como lang/xx.txt, traduce la columna de la derecha,
+puis ajoutez en première ligne  #name=NomDeLaLangue.  Aucune installation n'est nécessaire.	y añade como primera línea  #name=NombreDelIdioma.  No hace falta instalar nada.
+O	O
+Globe	Globo
+Site	Sitio
+Date	Fecha
+Pause	Pausa
+Communication	Comunicación
+Terrain	Terreno
+Science	Ciencia
+Missions	Misiones
+Apollo 11	Apolo 11
+Apollo 12	Apolo 12
+Apollo 14	Apolo 14
+Apollo 15	Apolo 15
+Apollo 16	Apolo 16
+Apollo 17	Apolo 17
+Tycho	Tycho
+Clavius	Clavio
+de Gerlache	de Gerlache
+Kepler	Kepler
+Page %d / 2	Página %d / 2

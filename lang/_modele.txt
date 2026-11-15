@@ -1,0 +1,472 @@
+#name=NomDeLaLangue
+fr	fr
+%.1f km	%.1f km
+%.0f ft	%.0f ft
+%.1f mi	%.1f mi
+%.0f km²	%.0f km²
+%.0f mi²	%.0f mi²
+%g km	%g km
+%g mi	%g mi
+units=	units=
+imperial	imperial
+metric	metric
+Français	Français
+#name=	#name=
+Point : %s	Point : %s
+lat=	lat=
+lon=	lon=
+Apollo 11	Apollo 11
+Apollo 12	Apollo 12
+Apollo 14	Apollo 14
+Apollo 15	Apollo 15
+Apollo 16	Apollo 16
+Apollo 17	Apollo 17
+Chang'e 3	Chang'e 3
+Chang'e 4	Chang'e 4
+Chang'e 5	Chang'e 5
+Chandrayaan-3	Chandrayaan-3
+Mer de la Tranquillité	Mer de la Tranquillité
+Mer de la Sérénité	Mer de la Sérénité
+Mer des Crises	Mer des Crises
+Mer de la Fécondité	Mer de la Fécondité
+Mer des Pluies	Mer des Pluies
+Mer des Nuées	Mer des Nuées
+Océan des Tempêtes	Océan des Tempêtes
+Mer du Froid	Mer du Froid
+Mer des Humeurs	Mer des Humeurs
+Mer Orientale	Mer Orientale
+Tycho	Tycho
+Copernic	Copernic
+Aristarque	Aristarque
+Kepler	Kepler
+Platon	Platon
+Clavius	Clavius
+Bassin Pôle Sud-Aitken	Bassin Pôle Sud-Aitken
+Shackleton	Shackleton
+Haworth	Haworth
+de Gerlache	de Gerlache
+Faustini	Faustini
+Cabeus	Cabeus
+Malapert	Malapert
+Nobile	Nobile
+Amundsen	Amundsen
+Missions	Missions
+Reliefs	Reliefs
+Pôle Sud	Pôle Sud
+--lat %.4f --lon %.4f --out %s --zoom %.2f --start %s	--lat %.4f --lon %.4f --out %s --zoom %.2f --start %s
+Outil de préparation introuvable (voir Aide > Vérifier l'installation).	Outil de préparation introuvable (voir Aide > Vérifier l'installation).
+S	S
+N	N
+janv.	janv.
+févr.	févr.
+mars	mars
+avr.	avr.
+mai	mai
+juin	juin
+juil.	juil.
+août	août
+sept.	sept.
+oct.	oct.
+nov.	nov.
+déc.	déc.
+excellent	excellent
+bon	bon
+moyen	moyen
+faible	faible
+hors zone étudiée	hors zone étudiée
+nuit trop longue	nuit trop longue
+Terre jamais visible	Terre jamais visible
+pente trop forte	pente trop forte
+terrain rugueux	terrain rugueux
+Classement des sites	Classement des sites
+Point choisi (clic sur le terrain) : %.2f, %.2f	Point choisi (clic sur le terrain) : %.2f, %.2f
+Note %.0f / 100   (%s)	Note %.0f / 100   (%s)
+Éliminé : %s	Éliminé : %s
+Aucun site à classer dans cette zone.	Aucun site à classer dans cette zone.
+%.2f, %.2f   Soleil %.0f %%   Terre %.0f %%   nuit %.0f h	%.2f, %.2f   Soleil %.0f %%   Terre %.0f %%   nuit %.0f h
+#%d    %.0f / 100    ÉLIMINÉ	#%d    %.0f / 100    ÉLIMINÉ
+Meilleure date : %s  (note %.0f)	Meilleure date : %s  (note %.0f)
+Meilleure date : aucune date valide pour ce site	Meilleure date : aucune date valide pour ce site
+Stabilité : %.0f %%  (30 jeux de poids perturbés de 30 %%)	Stabilité : %.0f %%  (30 jeux de poids perturbés de 30 %%)
+Stabilité : calculée au relâchement du curseur	Stabilité : calculée au relâchement du curseur
+Stabilité : sans objet (site éliminé)	Stabilité : sans objet (site éliminé)
+critère	critère
+sous-note (0 à 1)	sous-note (0 à 1)
+poids	poids
+Énergie	Énergie
+Communication	Communication
+Thermique*	Thermique*
+Terrain	Terrain
+Science	Science
+Science (ignorée)	Science (ignorée)
+pente %.1f°   rugosité %s   marge Terre %.1f°	pente %.1f°   rugosité %s   marge Terre %.1f°
+Garder ce site comme point enregistré	Garder ce site comme point enregistré
+Note = moyenne géométrique pondérée des 5 critères (poids = curseurs).	Note = moyenne géométrique pondérée des 5 critères (poids = curseurs).
+* Thermique : cycles lumière/ombre, ce n'est pas une température.	* Thermique : cycles lumière/ombre, ce n'est pas une température.
+') fputc('	') fputc('
+hors zone etudiee	hors zone etudiee
+site	site
+zone_initiale	zone_initiale
+Impossible d'écrire dans le dossier exports/	Impossible d'écrire dans le dossier exports/
+rang	rang
+note_sur_100	note_sur_100
+valide	valide
+raison_elimination	raison_elimination
+latitude	latitude
+longitude	longitude
+altitude_m	altitude_m
+pente_deg	pente_deg
+rugosite_m	rugosite_m
+soleil_pct	soleil_pct
+terre_pct	terre_pct
+nuit_max_h	nuit_max_h
+marge_terre_deg	marge_terre_deg
+note_energie	note_energie
+note_communication	note_communication
+note_thermique_indicateur	note_thermique_indicateur
+note_terrain	note_terrain
+note_science	note_science
+meilleur_debut	meilleur_debut
+note_au_meilleur_debut	note_au_meilleur_debut
+stabilite_pct	stabilite_pct
+pente_pire_cas_ellipse_deg	pente_pire_cas_ellipse_deg
+ombre_permanente	ombre_permanente
+dans_zone_recherche	dans_zone_recherche
+pas_6h	pas_6h
+date_heure_utc	date_heure_utc
+soleil_visible_pct	soleil_visible_pct
+terre_visible_pct	terre_visible_pct
+parametre	parametre
+valeur	valeur
+logiciel	logiciel
+date_export	date_export
+zone initiale	zone initiale
+latitude_point_central	latitude_point_central
+longitude_point_central	longitude_point_central
+taille_zone_km	taille_zone_km
+taille_cellule_m	taille_cellule_m
+rayon_recherche_km	rayon_recherche_km
+duree_mission_jours	duree_mission_jours
+debut_mission	debut_mission
+poids_energie	poids_energie
+poids_communication	poids_communication
+poids_thermique	poids_thermique
+poids_terrain	poids_terrain
+poids_science	poids_science
+critere_science_ignore	critere_science_ignore
+pente_max_deg	pente_max_deg
+rugosite_max_m	rugosite_max_m
+nuit_continue_max_h	nuit_continue_max_h
+ellipse_atterrissage_m	ellipse_atterrissage_m
+distance_min_entre_sites_km	distance_min_entre_sites_km
+relais_disponible	relais_disponible
+cases_etudiees	cases_etudiees
+cases_valides	cases_valides
+elimination_pente_pct	elimination_pente_pct
+elimination_rugosite_pct	elimination_rugosite_pct
+elimination_terre_pct	elimination_terre_pct
+elimination_nuit_pct	elimination_nuit_pct
+cases_ombre_permanente	cases_ombre_permanente
+%d fichiers écrits dans exports/ (%s_...)	%d fichiers écrits dans exports/ (%s_...)
+Latitude invalide : un nombre entre -90 et 90 (ex. -89,9 ou 89.9 S).	Latitude invalide : un nombre entre -90 et 90 (ex. -89,9 ou 89.9 S).
+Longitude invalide : un nombre entre -180 et 360 (ex. 45 ou 120 O).	Longitude invalide : un nombre entre -180 et 360 (ex. 45 ou 120 O).
+PRISE EN MAIN	PRISE EN MAIN
+1.  Onglet GLOBE : tournez la Lune (glisser), zoomez (molette), cliquez pour marquer un point,	1.  Onglet GLOBE : tournez la Lune (glisser), zoomez (molette), cliquez pour marquer un point,
+     puis « Enregistrer ce point », ou saisissez des coordonnées (Fichier > Nouveau point, Ctrl+N).	     puis « Enregistrer ce point », ou saisissez des coordonnées (Fichier > Nouveau point, Ctrl+N).
+     Filtres : luminosité à une date, topographie (altitude, écart à la moyenne, rugosité), points d'intérêt.	     Filtres : luminosité à une date, topographie (altitude, écart à la moyenne, rugosité), points d'intérêt.
+     Cliquez sur le nom d'un point pour le renommer.	     Cliquez sur le nom d'un point pour le renommer.
+2.  Bouton « Site » à côté d'un point : ouvre le relief détaillé autour de ce point.	2.  Bouton « Site » à côté d'un point : ouvre le relief détaillé autour de ce point.
+     Si la zone n'est pas encore préparée, cliquez sur « Préparer cette zone » (quelques secondes).	     Si la zone n'est pas encore préparée, cliquez sur « Préparer cette zone » (quelques secondes).
+3.  Onglet SITE : le Soleil et la Terre sont-ils visibles ? sur 30 jours, avec la pente du terrain.	3.  Onglet SITE : le Soleil et la Terre sont-ils visibles ? sur 30 jours, avec la pente du terrain.
+     Les boutons - et + (en haut à droite) agrandissent ou réduisent la zone étudiée.	     Les boutons - et + (en haut à droite) agrandissent ou réduisent la zone étudiée.
+4.  Onglet SOL : la vue à 360° depuis le point choisi, avec le Soleil et la Terre dans le ciel.	4.  Onglet SOL : la vue à 360° depuis le point choisi, avec le Soleil et la Terre dans le ciel.
+5.  Onglet ANALYSE : classe automatiquement des sites d'atterrissage autour d'un point.	5.  Onglet ANALYSE : classe automatiquement des sites d'atterrissage autour d'un point.
+TERMES UTILES	TERMES UTILES
+-  Nuit lunaire : environ 14,8 jours d'obscurité (350 h) en dehors des pôles.	-  Nuit lunaire : environ 14,8 jours d'obscurité (350 h) en dehors des pôles.
+-  Ombre permanente : zone où le Soleil ne se lève jamais, là où l'on peut trouver de la glace.	-  Ombre permanente : zone où le Soleil ne se lève jamais, là où l'on peut trouver de la glace.
+-  Terre visible : permet une liaison radio directe. Au fond d'un cratère, elle est souvent cachée.	-  Terre visible : permet une liaison radio directe. Au fond d'un cratère, elle est souvent cachée.
+Les données viennent du laser altimètre LOLA et de la caméra LROC (sonde NASA LRO).	Les données viennent du laser altimètre LOLA et de la caméra LROC (sonde NASA LRO).
+L'ONGLET ANALYSE	L'ONGLET ANALYSE
+1.  Cliquez sur « Analyser l'année » (une seule fois par site : le résultat est enregistré).	1.  Cliquez sur « Analyser l'année » (une seule fois par site : le résultat est enregistré).
+2.  Cliquez sur le terrain pour choisir le centre de la zone de recherche, réglez le rayon.	2.  Cliquez sur le terrain pour choisir le centre de la zone de recherche, réglez le rayon.
+3.  Réglez la durée de la mission, sa date de début (ou « Meilleure date »), les priorités.	3.  Réglez la durée de la mission, sa date de début (ou « Meilleure date »), les priorités.
+4.  Le tableau en haut à gauche de la vue 3D donne les 5 meilleurs sites avec leur note sur 100.	4.  Le tableau en haut à gauche de la vue 3D donne les 5 meilleurs sites avec leur note sur 100.
+5.  Sur la carte : VERT = site valide (plus clair = meilleure note), ROUGE = éliminé, VIOLET = ombre.	5.  Sur la carte : VERT = site valide (plus clair = meilleure note), ROUGE = éliminé, VIOLET = ombre.
+COMMENT LA NOTE EST CALCULÉE	COMMENT LA NOTE EST CALCULÉE
+Filtres éliminatoires : pente, rugosité du terrain, Terre jamais visible, nuit trop longue.	Filtres éliminatoires : pente, rugosité du terrain, Terre jamais visible, nuit trop longue.
+Puis une moyenne pondérée de 5 critères : Énergie, Communication, Thermique*, Terrain, Science.	Puis une moyenne pondérée de 5 critères : Énergie, Communication, Thermique*, Terrain, Science.
+Les poids sont les curseurs « Priorités » ; les profils Survie, Glace et Relais les règlent d'un clic.	Les poids sont les curseurs « Priorités » ; les profils Survie, Glace et Relais les règlent d'un clic.
+* Thermique : indicateur de cycles lumière/ombre, ce n'est pas une température.	* Thermique : indicateur de cycles lumière/ombre, ce n'est pas une température.
+EXPORT : menu Fichier > Exporter en CSV (4 fichiers dans le dossier exports).	EXPORT : menu Fichier > Exporter en CSV (4 fichiers dans le dossier exports).
+Limites : relief à 200 m par case (blocs et petits cratères invisibles), un seul mois ou un an modélisé.	Limites : relief à 200 m par case (blocs et petits cratères invisibles), un seul mois ou un an modélisé.
+RACCOURCIS CLAVIER	RACCOURCIS CLAVIER
+Ctrl + 1 / 2 / 3 / 4      Globe / Site / Sol / Analyse	Ctrl + 1 / 2 / 3 / 4      Globe / Site / Sol / Analyse
+Ctrl + E                  Exporter le classement en CSV	Ctrl + E                  Exporter le classement en CSV
+Ctrl + N                  Nouveau point (saisie de coordonnées)	Ctrl + N                  Nouveau point (saisie de coordonnées)
+Ctrl + ,                  Préférences (langue, unités)	Ctrl + ,                  Préférences (langue, unités)
+F1                        Guide d'utilisation	F1                        Guide d'utilisation
+F2                        Renommer le point actuel	F2                        Renommer le point actuel
+F11                       Plein écran	F11                       Plein écran
+Échap                     Fermer un menu ou une fenêtre, annuler une saisie	Échap                     Fermer un menu ou une fenêtre, annuler une saisie
+SOURIS	SOURIS
+Glisser                   Tourner la caméra (Globe, Site, Analyse) ou regarder autour (Sol)	Glisser                   Tourner la caméra (Globe, Site, Analyse) ou regarder autour (Sol)
+Molette                   Zoom (Globe, Site, Analyse) ; défilement du panneau (Analyse)	Molette                   Zoom (Globe, Site, Analyse) ; défilement du panneau (Analyse)
+Clic                      Marquer un point (Globe), choisir un site (Site, Analyse)	Clic                      Marquer un point (Globe), choisir un site (Site, Analyse)
+SELENE  -  planificateur de site d'atterrissage lunaire	SELENE  -  planificateur de site d'atterrissage lunaire
+Projet réalisé pour le NASA Space Apps Challenge 2026.	Projet réalisé pour le NASA Space Apps Challenge 2026.
+Données : NASA / LRO (altimètre LOLA, caméra LROC), domaine public.	Données : NASA / LRO (altimètre LOLA, caméra LROC), domaine public.
+Éphémérides : modèle analytique de Jean Meeus (Astronomical Algorithms), hors ligne.	Éphémérides : modèle analytique de Jean Meeus (Astronomical Algorithms), hors ligne.
+Interface : raylib (licence zlib). Compression : sdefl / sinfl (domaine public).	Interface : raylib (licence zlib). Compression : sdefl / sinfl (domaine public).
+Les résultats sont des estimations pour la démonstration :	Les résultats sont des estimations pour la démonstration :
+ils ne remplacent pas une étude de mission.	ils ne remplacent pas une étude de mission.
+py --version > nul 2>&1	py --version > nul 2>&1
+ldem	ldem
+_err	_err
+effres	effres
+Guide d'utilisation	Guide d'utilisation
+Raccourcis clavier	Raccourcis clavier
+À propos de Selene	À propos de Selene
+Vérification de l'installation	Vérification de l'installation
+Supprimer tous les points ?	Supprimer tous les points ?
+Nouveau point : saisie des coordonnées	Nouveau point : saisie des coordonnées
+Préférences	Préférences
+Globe lunaire (relief et couleurs)	Globe lunaire (relief et couleurs)
+Outil de préparation des sites	Outil de préparation des sites
+Python détecté : tools/prepare_data.py	Python détecté : tools/prepare_data.py
+Relief LOLA du pôle Sud (80 m par pixel)	Relief LOLA du pôle Sud (80 m par pixel)
+Relief LOLA mondial (hors pôle Sud)	Relief LOLA mondial (hors pôle Sud)
+%d site(s) déjà préparé(s) sur %d point(s) enregistré(s)	%d site(s) déjà préparé(s) sur %d point(s) enregistré(s)
+Les sites préparés s'ouvrent sans aucune installation supplémentaire.	Les sites préparés s'ouvrent sans aucune installation supplémentaire.
+Sans les fichiers de relief, vous pouvez quand même utiliser tous les sites déjà préparés.	Sans les fichiers de relief, vous pouvez quand même utiliser tous les sites déjà préparés.
+Ouvrir le dossier des données	Ouvrir le dossier des données
+Latitude  (de -90 à 90, ex. -89,9  ou  89.9 S)	Latitude  (de -90 à 90, ex. -89,9  ou  89.9 S)
+Longitude  (Est positif, ex. 45  ou  120 O)	Longitude  (Est positif, ex. 45  ou  120 O)
+Nom du point  (facultatif)	Nom du point  (facultatif)
+Entrée : enregistrer   |   Tab : champ suivant   |   Échap : annuler	Entrée : enregistrer   |   Tab : champ suivant   |   Échap : annuler
+Langue de l'interface	Langue de l'interface
+Unités de mesure	Unités de mesure
+Métrique (m, km)	Métrique (m, km)
+Impérial (ft, mi)	Impérial (ft, mi)
+Les exports CSV restent toujours en unités métriques (m, km).	Les exports CSV restent toujours en unités métriques (m, km).
+puis ajoutez en première ligne  #name=NomDeLaLangue.  Aucune installation n'est nécessaire.	puis ajoutez en première ligne  #name=NomDeLaLangue.  Aucune installation n'est nécessaire.
+%d point(s) enregistré(s) vont être retirés de la liste et du globe.	%d point(s) enregistré(s) vont être retirés de la liste et du globe.
+Les sites déjà préparés restent sur le disque (aucun fichier n'est effacé).	Les sites déjà préparés restent sur le disque (aucun fichier n'est effacé).
+Cette action est définitive.	Cette action est définitive.
+Page %d / 2	Page %d / 2
+Précédent	Précédent
+Suivant	Suivant
+Annuler	Annuler
+Tout supprimer	Tout supprimer
+Marquer seulement	Marquer seulement
+Enregistrer	Enregistrer
+Fermer	Fermer
+Selene %s - %s	Selene %s - %s
+Planificateur de site lunaire	Planificateur de site lunaire
+Éclairement solaire	Éclairement solaire
+Visibilité de la Terre	Visibilité de la Terre
+Altitude	Altitude
+Pente	Pente
+Globe indisponible : voir Aide > Vérifier l'installation.	Globe indisponible : voir Aide > Vérifier l'installation.
+Ouvrez l'onglet Analyse et lancez l'analyse avant d'exporter.	Ouvrez l'onglet Analyse et lancez l'analyse avant d'exporter.
+Sélectionnez d'abord un point enregistré (onglet Globe, bouton « Site »).	Sélectionnez d'abord un point enregistré (onglet Globe, bouton « Site »).
+Point supprimé.	Point supprimé.
+Aucun point enregistré n'est sélectionné.	Aucun point enregistré n'est sélectionné.
+Réglages du classement réinitialisés.	Réglages du classement réinitialisés.
+Choisissez d'abord un point enregistré (onglet Globe).	Choisissez d'abord un point enregistré (onglet Globe).
+Ce site doit être re-préparé (Outils > Préparer / re-préparer).	Ce site doit être re-préparé (Outils > Préparer / re-préparer).
+Analyse enregistrée supprimée pour ce site.	Analyse enregistrée supprimée pour ce site.
+Aucune analyse enregistrée pour ce site.	Aucune analyse enregistrée pour ce site.
+Export CSV : format Excel français (; et virgule).	Export CSV : format Excel français (; et virgule).
+Export CSV : format international (, et point).	Export CSV : format international (, et point).
+Aucun point à supprimer.	Aucun point à supprimer.
+Point « %s » enregistré (%.3f, %.3f).	Point « %s » enregistré (%.3f, %.3f).
+Maximum de points atteint : supprimez-en un d'abord.	Maximum de points atteint : supprimez-en un d'abord.
+Point marqué : %.3f, %.3f.	Point marqué : %.3f, %.3f.
+%d point(s) supprimé(s).	%d point(s) supprimé(s).
+Préparation du site (quelques secondes)...	Préparation du site (quelques secondes)...
+Chargement du site (calcul de l'éclairement)...	Chargement du site (calcul de l'éclairement)...
+Chargement de l'analyse enregistrée...	Chargement de l'analyse enregistrée...
+Analyse de l'année complète (quelques secondes)...	Analyse de l'année complète (quelques secondes)...
+E	E
+O	O
+Soleil (%.1f°)	Soleil (%.1f°)
+Soleil (masqué)	Soleil (masqué)
+Terre (%.1f°)	Terre (%.1f°)
+Terre (masquée)	Terre (masquée)
+Vert : site valide (plus clair = meilleure note)  |  Rouge : éliminé par un filtre  |  Violet : ombre permanente	Vert : site valide (plus clair = meilleure note)  |  Rouge : éliminé par un filtre  |  Violet : ombre permanente
+Site non préparé	Site non préparé
+Zone : %s	Zone : %s
+Zone : x%.1f	Zone : x%.1f
+Glisser = tourner  |  molette = zoom  |  clic = marquer un point	Glisser = tourner  |  molette = zoom  |  clic = marquer un point
+Glisser = regarder autour (360°)  |  relief réel x1	Glisser = regarder autour (360°)  |  relief réel x1
+Clic = centre de la zone de recherche  |  cercle jaune = rayon  |  chiffres = sites candidats	Clic = centre de la zone de recherche  |  cercle jaune = rayon  |  chiffres = sites candidats
+Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site	Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site
+Lune entière  |  rayon %s	Lune entière  |  rayon %s
+Carré de %s x %s (%s)	Carré de %s x %s (%s)
+Cellule : %s  |  relief x%.1f	Cellule : %s  |  relief x%.1f
+Globe	Globe
+Site	Site
+Sol	Sol
+Analyse	Analyse
+Globe indisponible.	Globe indisponible.
+Lancez tools/prepare_globe.py	Lancez tools/prepare_globe.py
+Exagération du relief	Exagération du relief
+Pôle Nord	Pôle Nord
+Filtres du globe	Filtres du globe
+Aucun	Aucun
+Luminosité	Luminosité
+Écart moyenne	Écart moyenne
+Rugosité	Rugosité
+Date	Date
+Pause	Pause
+Lecture	Lecture
+Phase de la Lune à cette date	Phase de la Lune à cette date
+nuit	nuit
+plein jour	plein jour
+Moyenne : %s   |   écart-type : %s	Moyenne : %s   |   écart-type : %s
+Minimum : %s   |   maximum : %s	Minimum : %s   |   maximum : %s
+Altitude (échelle : moyenne ± 3 écarts-types)	Altitude (échelle : moyenne ± 3 écarts-types)
+Écart à l'altitude moyenne, en écarts-types	Écart à l'altitude moyenne, en écarts-types
+-3 (bas)	-3 (bas)
++3 (haut)	+3 (haut)
+moyenne	moyenne
+Rugosité : écart-type local des altitudes	Rugosité : écart-type local des altitudes
+lisse	lisse
+Points d'intérêt	Points d'intérêt
+Zoomez pour voir les noms, cliquez pour marquer.	Zoomez pour voir les noms, cliquez pour marquer.
+Point marqué : %s	Point marqué : %s
+Point marqué	Point marqué
+lat %.3f   lon %.3f	lat %.3f   lon %.3f
+Altitude : %s	Altitude : %s
+Enregistrer ce point	Enregistrer ce point
+Maximum de %d points atteint	Maximum de %d points atteint
+Cliquez sur la Lune pour marquer un point.	Cliquez sur la Lune pour marquer un point.
+Saisir des coordonnées...	Saisir des coordonnées...
+Points enregistrés	Points enregistrés
+Tout effacer	Tout effacer
+Aucun pour l'instant.	Aucun pour l'instant.
+(cliquez sur un nom pour le modifier)	(cliquez sur un nom pour le modifier)
+Zone initiale : %.1f, %.1f (gris)	Zone initiale : %.1f, %.1f (gris)
+Relief LOLA et couleurs LRO (NASA)	Relief LOLA et couleurs LRO (NASA)
+Zone x%.1f non préparée.	Zone x%.1f non préparée.
+Préparer cette zone	Préparer cette zone
+Hors ligne : nécessite Python et un fichier LDEM.	Hors ligne : nécessite Python et un fichier LDEM.
+DEM : LOLA polaire (80 m)	DEM : LOLA polaire (80 m)
+DEM : mondial (ldem_64)	DEM : mondial (ldem_64)
+Zone initiale : taille non modifiable.	Zone initiale : taille non modifiable.
+Classement indisponible.	Classement indisponible.
+Ce site a une ancienne préparation.	Ce site a une ancienne préparation.
+Il faut les fichiers année + repères.	Il faut les fichiers année + repères.
+Re-préparer ce site	Re-préparer ce site
+Analyse annuelle requise (~ 5 s).	Analyse annuelle requise (~ 5 s).
+Soleil et Terre vus de chaque case,	Soleil et Terre vus de chaque case,
+sur une année entière, relief inclus.	sur une année entière, relief inclus.
+Analyser l'année	Analyser l'année
+Rayon de recherche	Rayon de recherche
+Durée de la mission	Durée de la mission
+Début de la mission	Début de la mission
+Survie	Survie
+Glace	Glace
+Relais	Relais
+Relais disponible : oui	Relais disponible : oui
+Relais disponible : non	Relais disponible : non
+Priorités	Priorités
+Contraintes	Contraintes
+Énergie (Soleil)	Énergie (Soleil)
+Communication (Terre)	Communication (Terre)
+Stabilité thermique*	Stabilité thermique*
+Sécurité du terrain	Sécurité du terrain
+Intérêt scientifique (glace)	Intérêt scientifique (glace)
+ignoré	ignoré
+Aucune ombre permanente dans cette zone.	Aucune ombre permanente dans cette zone.
+Pente maximale	Pente maximale
+Rugosité maximale	Rugosité maximale
+Nuit continue maximale	Nuit continue maximale
+Ellipse d'atterrissage	Ellipse d'atterrissage
+Distance min. entre sites	Distance min. entre sites
+Meilleure date pour cette zone	Meilleure date pour cette zone
+Aucune date valide avec ces contraintes (voir ci-dessous).	Aucune date valide avec ces contraintes (voir ci-dessous).
+Résultats	Résultats
+Cases valides à cette date : %.0f %%	Cases valides à cette date : %.0f %%
+Aucun site valide à cette date.	Aucun site valide à cette date.
+(le tableau montre les meilleurs sites éliminés)	(le tableau montre les meilleurs sites éliminés)
+terrain trop rugueux	terrain trop rugueux
+%s : %.0f %% des cases	%s : %.0f %% des cases
+Au-delà de 15 j, une nuit lunaire (~350 h)	Au-delà de 15 j, une nuit lunaire (~350 h)
+est inévitable : réduisez la durée ou la limite.	est inévitable : réduisez la durée ou la limite.
+Autoriser pente jusqu'à 25°	Autoriser pente jusqu'à 25°
+Autoriser rugosité jusqu'à %s	Autoriser rugosité jusqu'à %s
+Activer le relais de communication	Activer le relais de communication
+Autoriser nuit jusqu'à 400 h	Autoriser nuit jusqu'à 400 h
+Le classement et les notes sont dans le	Le classement et les notes sont dans le
+tableau en haut à gauche de la vue 3D.	tableau en haut à gauche de la vue 3D.
+Analyse relue depuis le disque (rapide).	Analyse relue depuis le disque (rapide).
+Analyse calculée puis enregistrée sur le disque.	Analyse calculée puis enregistrée sur le disque.
+Exporter en CSV	Exporter en CSV
+Format : Excel FR (;)	Format : Excel FR (;)
+Format : international (,)	Format : international (,)
+Ouvrir dossier	Ouvrir dossier
+Couche affichée	Couche affichée
+Orientation rapide	Orientation rapide
+Viser Soleil	Viser Soleil
+Viser Terre	Viser Terre
+Mode ingénieur : activé	Mode ingénieur : activé
+Mode ingénieur : désactivé	Mode ingénieur : désactivé
+Date : J+%.1f	Date : J+%.1f
+Pente maximale admise	Pente maximale admise
+Exagération verticale	Exagération verticale
+Aucun site sélectionné.	Aucun site sélectionné.
+Cliquez sur le terrain.	Cliquez sur le terrain.
+Soleil visible : %.0f %%	Soleil visible : %.0f %%
+Terre visible : %.0f %%	Terre visible : %.0f %%
+Plus longue nuit : %.1f j	Plus longue nuit : %.1f j
+Plus longue coupure radio : %.1f j	Plus longue coupure radio : %.1f j
+Cellule (x, y) : %d, %d	Cellule (x, y) : %d, %d
+Altitude : %s   Pente : %.1f°	Altitude : %s   Pente : %.1f°
+Soleil az/él : %.0f° / %.1f°	Soleil az/él : %.0f° / %.1f°
+Terre az/él : %.0f° / %.1f°	Terre az/él : %.0f° / %.1f°
+Pente compatible avec un atterrissage	Pente compatible avec un atterrissage
+Pente de %.0f° : trop forte	Pente de %.0f° : trop forte
+Données FICTIVES (terrain et/ou éphémérides)	Données FICTIVES (terrain et/ou éphémérides)
+Géométrie approx.	Géométrie approx.
+Re-préparer	Re-préparer
+Soleil	Soleil
+Terre	Terre
+Choisissez un site pour afficher ses fenêtres de lumière et de communication	Choisissez un site pour afficher ses fenêtres de lumière et de communication
+Zone initiale	Zone initiale
+Année complète, site %d  |  fenêtre de mission en blanc  |  clic = choisir le début	Année complète, site %d  |  fenêtre de mission en blanc  |  clic = choisir le début
+Cand%d	Cand%d
+Site %d enregistré : point %s (voir l'onglet Globe).	Site %d enregistré : point %s (voir l'onglet Globe).
+Impossible : %d points enregistrés au maximum.	Impossible : %d points enregistrés au maximum.
+Fichier	Fichier
+Nouveau point (coordonnées)...	Nouveau point (coordonnées)...
+Ctrl+N	Ctrl+N
+Exporter le classement en CSV	Exporter le classement en CSV
+Ctrl+E	Ctrl+E
+Ouvrir le dossier d'export	Ouvrir le dossier d'export
+Quitter	Quitter
+Alt+F4	Alt+F4
+Édition	Édition
+Renommer le point actuel	Renommer le point actuel
+Supprimer le point actuel	Supprimer le point actuel
+Supprimer tous les points...	Supprimer tous les points...
+Réinitialiser les réglages du classement	Réinitialiser les réglages du classement
+Affichage	Affichage
+Ctrl+1	Ctrl+1
+Ctrl+2	Ctrl+2
+Sol (vue à 360°)	Sol (vue à 360°)
+Ctrl+3	Ctrl+3
+Ctrl+4	Ctrl+4
+Zone plus grande	Zone plus grande
+Zone plus petite	Zone plus petite
+Plein écran	Plein écran
+Outils	Outils
+Préparer / re-préparer le site actuel	Préparer / re-préparer le site actuel
+Analyser l'année (onglet Analyse)	Analyser l'année (onglet Analyse)
+Oublier l'analyse enregistrée du site	Oublier l'analyse enregistrée du site
+Format CSV : Excel FR (passer en international)	Format CSV : Excel FR (passer en international)
+Format CSV : international (passer en Excel FR)	Format CSV : international (passer en Excel FR)
+Préférences (langue, unités)...	Préférences (langue, unités)...
+Ctrl+,	Ctrl+,
+Vérifier l'installation...	Vérifier l'installation...
+Aide	Aide

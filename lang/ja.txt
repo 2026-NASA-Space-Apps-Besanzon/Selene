@@ -1,0 +1,442 @@
+#name=日本語
+Mer de la Tranquillité	静かの海
+Mer de la Sérénité	晴れの海
+Mer des Crises	危機の海
+Mer de la Fécondité	豊かの海
+Mer des Pluies	雨の海
+Mer des Nuées	雲の海
+Océan des Tempêtes	嵐の大洋
+Mer du Froid	冷たさの海
+Mer des Humeurs	湿りの海
+Mer Orientale	東の海
+Copernic	コペルニクス
+Aristarque	アリスタルコス
+Platon	プラトン
+Bassin Pôle Sud-Aitken	南極＝エイトケン盆地
+Reliefs	地形
+Pôle Sud	南極
+Pôle Nord	北極
+Outil de préparation introuvable (voir Aide > Vérifier l'installation).	準備ツールが見つかりません（ヘルプ > インストールの確認 を参照）。
+Point : %s	地点: %s
+janv.	1月
+févr.	2月
+mars	3月
+avr.	4月
+mai	5月
+juin	6月
+juil.	7月
+août	8月
+sept.	9月
+oct.	10月
+nov.	11月
+déc.	12月
+excellent	優秀
+bon	良好
+moyen	普通
+faible	低い
+hors zone étudiée	調査範囲外
+hors zone etudiee	調査範囲外
+nuit trop longue	夜が長すぎる
+Terre jamais visible	地球が見えない
+pente trop forte	傾斜が急すぎる
+terrain rugueux	地形が粗い
+Classement des sites	候補地ランキング
+Point choisi (clic sur le terrain) : %.2f, %.2f	選択した地点（地形をクリック）: %.2f, %.2f
+Note %.0f / 100   (%s)	スコア %.0f / 100   (%s)
+Éliminé : %s	除外: %s
+Aucun site à classer dans cette zone.	この範囲には順位付けする候補地がありません。
+%.2f, %.2f   Soleil %.0f %%   Terre %.0f %%   nuit %.0f h	%.2f, %.2f   太陽 %.0f %%   地球 %.0f %%   夜 %.0f 時間
+#%d    %.0f / 100    ÉLIMINÉ	#%d    %.0f / 100    除外
+Meilleure date : %s  (note %.0f)	最適な日付: %s  (スコア %.0f)
+Meilleure date : aucune date valide pour ce site	最適な日付: この候補地に有効な日付なし
+Stabilité : %.0f %%  (30 jeux de poids perturbés de 30 %%)	安定性: %.0f %%  (重みを30 %%変動させた30通り)
+Stabilité : calculée au relâchement du curseur	安定性: スライダーを離すと計算されます
+Stabilité : sans objet (site éliminé)	安定性: 対象外（候補地は除外済み）
+critère	基準
+sous-note (0 à 1)	サブスコア (0～1)
+poids	重み
+Énergie	エネルギー
+Thermique*	熱*
+Science (ignorée)	科学（無視）
+pente %.1f°   rugosité %s   marge Terre %.1f°	傾斜 %.1f°   粗さ %s   地球の余裕角 %.1f°
+Garder ce site comme point enregistré	この候補地を登録地点として保存
+Note = moyenne géométrique pondérée des 5 critères (poids = curseurs).	スコア = 5つの基準の重み付き幾何平均（重み = スライダー）。
+* Thermique : cycles lumière/ombre, ce n'est pas une température.	* 熱: 明暗サイクルの指標であり、温度ではありません。
+Impossible d'écrire dans le dossier exports/	exports/ フォルダーに書き込めません
+rang	順位
+note_sur_100	スコア_100点満点
+valide	有効
+raison_elimination	除外理由
+altitude_m	標高_m
+pente_deg	傾斜_度
+rugosite_m	粗さ_m
+soleil_pct	太陽_pct
+terre_pct	地球_pct
+nuit_max_h	最長夜_時間
+marge_terre_deg	地球余裕角_度
+note_energie	スコア_エネルギー
+note_communication	スコア_通信
+note_thermique_indicateur	スコア_熱_指標
+note_terrain	スコア_地形
+note_science	スコア_科学
+meilleur_debut	最適開始日
+note_au_meilleur_debut	最適開始日のスコア
+stabilite_pct	安定性_pct
+pente_pire_cas_ellipse_deg	最悪傾斜_楕円_度
+ombre_permanente	永久影
+dans_zone_recherche	探索範囲内
+pas_6h	ステップ_6時間
+date_heure_utc	日時_utc
+soleil_visible_pct	太陽可視_pct
+terre_visible_pct	地球可視_pct
+parametre	パラメータ
+valeur	値
+logiciel	ソフトウェア
+date_export	出力日
+zone initiale	初期範囲
+latitude_point_central	中心点の緯度
+longitude_point_central	中心点の経度
+taille_zone_km	範囲サイズ_km
+taille_cellule_m	セルサイズ_m
+rayon_recherche_km	探索半径_km
+duree_mission_jours	ミッション期間_日
+debut_mission	ミッション開始
+poids_energie	重み_エネルギー
+poids_communication	重み_通信
+poids_thermique	重み_熱
+poids_terrain	重み_地形
+poids_science	重み_科学
+critere_science_ignore	科学基準_無視
+pente_max_deg	最大傾斜_度
+rugosite_max_m	最大粗さ_m
+nuit_continue_max_h	最長連続夜_時間
+ellipse_atterrissage_m	着陸楕円_m
+distance_min_entre_sites_km	候補地間の最小距離_km
+relais_disponible	中継局_利用可
+cases_etudiees	調査セル数
+cases_valides	有効セル数
+elimination_pente_pct	除外_傾斜_pct
+elimination_rugosite_pct	除外_粗さ_pct
+elimination_terre_pct	除外_地球_pct
+elimination_nuit_pct	除外_夜_pct
+cases_ombre_permanente	永久影セル数
+%d fichiers écrits dans exports/ (%s_...)	%d 個のファイルを exports/ に書き出しました (%s_...)
+Latitude invalide : un nombre entre -90 et 90 (ex. -89,9 ou 89.9 S).	緯度が正しくありません: -90 から 90 の数値（例: -89,9 または 89.9 S）。
+Longitude invalide : un nombre entre -180 et 360 (ex. 45 ou 120 O).	経度が正しくありません: -180 から 360 の数値（例: 45 または 120 W）。
+PRISE EN MAIN	はじめに
+1.  Onglet GLOBE : tournez la Lune (glisser), zoomez (molette), cliquez pour marquer un point,	1.  「地球儀」タブ: 月を回転（ドラッグ）、拡大縮小（ホイール）、クリックで地点をマーク、
+     puis « Enregistrer ce point », ou saisissez des coordonnées (Fichier > Nouveau point, Ctrl+N).	     続いて「この地点を保存」、または座標を入力（ファイル > 新しい地点、Ctrl+N）。
+     Filtres : luminosité à une date, topographie (altitude, écart à la moyenne, rugosité), points d'intérêt.	     フィルター: 日付ごとの照度、地形（標高、平均からの差、粗さ）、注目地点。
+     Cliquez sur le nom d'un point pour le renommer.	     地点名をクリックすると名前を変更できます。
+2.  Bouton « Site » à côté d'un point : ouvre le relief détaillé autour de ce point.	2.  地点の横の「サイト」ボタン: その地点周辺の詳細な地形を開きます。
+     Si la zone n'est pas encore préparée, cliquez sur « Préparer cette zone » (quelques secondes).	     範囲が未準備の場合は「この範囲を準備」をクリック（数秒）。
+3.  Onglet SITE : le Soleil et la Terre sont-ils visibles ? sur 30 jours, avec la pente du terrain.	3.  「サイト」タブ: 太陽と地球は見えるか？ 30日間、地形の傾斜付き。
+     Les boutons - et + (en haut à droite) agrandissent ou réduisent la zone étudiée.	     右上の - と + ボタンで調査範囲を拡大・縮小します。
+4.  Onglet SOL : la vue à 360° depuis le point choisi, avec le Soleil et la Terre dans le ciel.	4.  「地表」タブ: 選んだ地点からの360°ビュー。空に太陽と地球が表示されます。
+5.  Onglet ANALYSE : classe automatiquement des sites d'atterrissage autour d'un point.	5.  「分析」タブ: 地点の周辺で着陸候補地を自動的にランク付けします。
+TERMES UTILES	用語集
+-  Nuit lunaire : environ 14,8 jours d'obscurité (350 h) en dehors des pôles.	-  月の夜: 極地以外で約14.8日間（350時間）の暗闇。
+-  Ombre permanente : zone où le Soleil ne se lève jamais, là où l'on peut trouver de la glace.	-  永久影: 太陽が昇らない領域。氷が見つかる可能性があります。
+-  Terre visible : permet une liaison radio directe. Au fond d'un cratère, elle est souvent cachée.	-  地球が見える: 直接の無線通信が可能。クレーターの底ではよく隠れます。
+Les données viennent du laser altimètre LOLA et de la caméra LROC (sonde NASA LRO).	データは LOLA レーザー高度計と LROC カメラ（NASA の探査機 LRO）によるものです。
+L'ONGLET ANALYSE	「分析」タブ
+1.  Cliquez sur « Analyser l'année » (une seule fois par site : le résultat est enregistré).	1.  「年間を分析」をクリック（候補地ごとに1回だけ。結果は保存されます）。
+2.  Cliquez sur le terrain pour choisir le centre de la zone de recherche, réglez le rayon.	2.  地形をクリックして探索範囲の中心を選び、半径を設定します。
+3.  Réglez la durée de la mission, sa date de début (ou « Meilleure date »), les priorités.	3.  ミッション期間、開始日（または「最適な日付」）、優先度を設定します。
+4.  Le tableau en haut à gauche de la vue 3D donne les 5 meilleurs sites avec leur note sur 100.	4.  3Dビュー左上の表に、スコア（100点満点）付きで上位5か所が表示されます。
+5.  Sur la carte : VERT = site valide (plus clair = meilleure note), ROUGE = éliminé, VIOLET = ombre.	5.  地図上: 緑 = 有効（明るいほど高スコア）、赤 = 除外、紫 = 影。
+COMMENT LA NOTE EST CALCULÉE	スコアの計算方法
+Filtres éliminatoires : pente, rugosité du terrain, Terre jamais visible, nuit trop longue.	除外フィルター: 傾斜、地形の粗さ、地球が見えない、夜が長すぎる。
+Puis une moyenne pondérée de 5 critères : Énergie, Communication, Thermique*, Terrain, Science.	その後、5つの基準の重み付き平均: エネルギー、通信、熱*、地形、科学。
+Les poids sont les curseurs « Priorités » ; les profils Survie, Glace et Relais les règlent d'un clic.	重みは「優先度」スライダーで、生存・氷・中継のプロファイルでワンクリック設定できます。
+* Thermique : indicateur de cycles lumière/ombre, ce n'est pas une température.	* 熱: 明暗サイクルの指標であり、温度ではありません。
+EXPORT : menu Fichier > Exporter en CSV (4 fichiers dans le dossier exports).	エクスポート: ファイル > CSVで出力（exports フォルダーに4ファイル）。
+Limites : relief à 200 m par case (blocs et petits cratères invisibles), un seul mois ou un an modélisé.	制限: 地形は1セル200 m（岩や小さなクレーターは見えません）、モデル化は1か月または1年のみ。
+RACCOURCIS CLAVIER	キーボードショートカット
+Ctrl + 1 / 2 / 3 / 4      Globe / Site / Sol / Analyse	Ctrl + 1 / 2 / 3 / 4      地球儀 / サイト / 地表 / 分析
+Ctrl + E                  Exporter le classement en CSV	Ctrl + E                  ランキングをCSVで出力
+Ctrl + N                  Nouveau point (saisie de coordonnées)	Ctrl + N                  新しい地点（座標入力）
+Ctrl + ,                  Préférences (langue, unités)	Ctrl + ,                  設定（言語・単位）
+F1                        Guide d'utilisation	F1                        使い方ガイド
+F2                        Renommer le point actuel	F2                        現在の地点の名前を変更
+F11                       Plein écran	F11                       全画面表示
+Échap                     Fermer un menu ou une fenêtre, annuler une saisie	Esc                       メニューやウィンドウを閉じる／入力を取り消す
+SOURIS	マウス
+Glisser                   Tourner la caméra (Globe, Site, Analyse) ou regarder autour (Sol)	ドラッグ                  カメラを回転（地球儀・サイト・分析）／見回す（地表）
+Molette                   Zoom (Globe, Site, Analyse) ; défilement du panneau (Analyse)	ホイール                  ズーム（地球儀・サイト・分析）／パネルのスクロール（分析）
+Clic                      Marquer un point (Globe), choisir un site (Site, Analyse)	クリック                  地点をマーク（地球儀）、候補地を選択（サイト・分析）
+SELENE  -  planificateur de site d'atterrissage lunaire	SELENE  -  月面着陸地点プランナー
+Projet réalisé pour le NASA Space Apps Challenge 2026.	NASA Space Apps Challenge 2026 のために制作されたプロジェクト。
+Données : NASA / LRO (altimètre LOLA, caméra LROC), domaine public.	データ: NASA / LRO（LOLA高度計、LROCカメラ）、パブリックドメイン。
+Éphémérides : modèle analytique de Jean Meeus (Astronomical Algorithms), hors ligne.	天体暦: ジャン・ミーウスの解析モデル（Astronomical Algorithms）、オフライン。
+Interface : raylib (licence zlib). Compression : sdefl / sinfl (domaine public).	インターフェース: raylib（zlibライセンス）。圧縮: sdefl / sinfl（パブリックドメイン）。
+Les résultats sont des estimations pour la démonstration :	結果はデモ用の推定値です:
+ils ne remplacent pas une étude de mission.	ミッション検討の代わりにはなりません。
+Guide d'utilisation	使い方ガイド
+Raccourcis clavier	キーボードショートカット
+À propos de Selene	Selene について
+Vérification de l'installation	インストールの確認
+Supprimer tous les points ?	すべての地点を削除しますか？
+Nouveau point : saisie des coordonnées	新しい地点: 座標の入力
+Globe lunaire (relief et couleurs)	月球儀（地形と色）
+Manquant : lancez tools/prepare_globe.py une fois (voir LISEZMOI.txt).	不足: tools/prepare_globe.py を一度実行してください（LISEZMOI.txt を参照）。
+Outil de préparation des sites	サイト準備ツール
+Python détecté : tools/prepare_data.py	Python を検出: tools/prepare_data.py
+Manquant : placez tools/prepare_data.exe, ou installez Python + rasterio.	不足: tools/prepare_data.exe を配置するか、Python + rasterio をインストールしてください。
+Relief LOLA du pôle Sud (80 m par pixel)	LOLA 南極地形（1ピクセル 80 m）
+Absent : placez LDEM_80S_80MPP_ADJ.tiff dans le dossier data/source.	なし: LDEM_80S_80MPP_ADJ.tiff を data/source フォルダーに置いてください。
+Relief LOLA mondial (hors pôle Sud)	LOLA 全球地形（南極以外）
+Absent : placez ldem_64 ou LDEM128 (.tif) dans le dossier data/source.	なし: ldem_64 または LDEM128 (.tif) を data/source フォルダーに置いてください。
+%d site(s) déjà préparé(s) sur %d point(s) enregistré(s)	準備済みサイト: %d 件（保存地点 %d 件中）
+Les sites préparés s'ouvrent sans aucune installation supplémentaire.	準備済みのサイトは追加のインストールなしで開けます。
+Sans les fichiers de relief, vous pouvez quand même utiliser tous les sites déjà préparés.	地形ファイルがなくても、準備済みのサイトはすべて使えます。
+Ouvrir le dossier des données	データフォルダーを開く
+Latitude  (de -90 à 90, ex. -89,9  ou  89.9 S)	緯度  （-90～90、例: -89,9  または  89.9 S）
+Longitude  (Est positif, ex. 45  ou  120 O)	経度  （東が正、例: 45  または  120 W）
+Nom du point  (facultatif)	地点名  （任意）
+Entrée : enregistrer   |   Tab : champ suivant   |   Échap : annuler	Enter: 保存   |   Tab: 次の欄   |   Esc: キャンセル
+%d point(s) enregistré(s) vont être retirés de la liste et du globe.	保存済みの %d 件の地点がリストと地球儀から削除されます。
+Les sites déjà préparés restent sur le disque (aucun fichier n'est effacé).	準備済みのサイトはディスクに残ります（ファイルは削除されません）。
+Cette action est définitive.	この操作は元に戻せません。
+Précédent	前へ
+Suivant	次へ
+Annuler	キャンセル
+Tout supprimer	すべて削除
+Marquer seulement	マークのみ
+Enregistrer	保存
+Fermer	閉じる
+Planificateur de site lunaire	月面サイトプランナー
+Dossier « data » introuvable à côté de selene.exe : données fictives. Placez selene.exe dans le dossier du projet.	selene.exe の隣に「data」フォルダーが見つかりません: 架空のデータを使用します。selene.exe をプロジェクトのフォルダーに置いてください。
+Éclairement solaire	太陽光照度
+Visibilité de la Terre	地球の可視性
+Altitude	標高
+Pente	傾斜
+Globe indisponible : voir Aide > Vérifier l'installation.	地球儀を利用できません: ヘルプ > インストールの確認 を参照してください。
+Ouvrez l'onglet Analyse et lancez l'analyse avant d'exporter.	エクスポートする前に「分析」タブを開いて分析を実行してください。
+Sélectionnez d'abord un point enregistré (onglet Globe, bouton « Site »).	先に保存済みの地点を選んでください（「地球儀」タブの「サイト」ボタン）。
+Point supprimé.	地点を削除しました。
+Aucun point enregistré n'est sélectionné.	保存済みの地点が選択されていません。
+Réglages du classement réinitialisés.	ランキングの設定をリセットしました。
+Choisissez d'abord un point enregistré (onglet Globe).	先に保存済みの地点を選んでください（「地球儀」タブ）。
+Ce site doit être re-préparé (Outils > Préparer / re-préparer).	このサイトは再準備が必要です（ツール > 準備 / 再準備）。
+Analyse enregistrée supprimée pour ce site.	このサイトの保存済み分析を削除しました。
+Aucune analyse enregistrée pour ce site.	このサイトには保存済みの分析がありません。
+Export CSV : format Excel français (; et virgule).	CSV出力: フランス語版Excel形式（; と小数点カンマ）。
+Export CSV : format international (, et point).	CSV出力: 国際形式（, と小数点ピリオド）。
+Aucun point à supprimer.	削除する地点がありません。
+Point « %s » enregistré (%.3f, %.3f).	地点「%s」を保存しました (%.3f, %.3f)。
+Maximum de points atteint : supprimez-en un d'abord.	地点数が上限に達しました: 先に1つ削除してください。
+Point marqué : %.3f, %.3f.	地点をマークしました: %.3f, %.3f。
+%d point(s) supprimé(s).	%d 件の地点を削除しました。
+Préparation du site (quelques secondes)...	サイトを準備しています（数秒）...
+Chargement du site (calcul de l'éclairement)...	サイトを読み込んでいます（照度を計算中）...
+Chargement de l'analyse enregistrée...	保存済みの分析を読み込んでいます...
+Analyse de l'année complète (quelques secondes)...	1年分を分析しています（数秒）...
+Soleil (%.1f°)	太陽 (%.1f°)
+Soleil (masqué)	太陽（見えない）
+Terre (%.1f°)	地球 (%.1f°)
+Terre (masquée)	地球（見えない）
+Vert : site valide (plus clair = meilleure note)  |  Rouge : éliminé par un filtre  |  Violet : ombre permanente	緑: 有効（明るいほど高スコア）  |  赤: フィルターで除外  |  紫: 永久影
+Site non préparé	サイト未準備
+Zone : %s	範囲: %s
+Zone : x%.1f	範囲: x%.1f
+Glisser = tourner  |  molette = zoom  |  clic = marquer un point	ドラッグ = 回転  |  ホイール = ズーム  |  クリック = 地点をマーク
+Glisser = regarder autour (360°)  |  relief réel x1	ドラッグ = 見回す（360°）  |  実際の地形 x1
+Clic = centre de la zone de recherche  |  cercle jaune = rayon  |  chiffres = sites candidats	クリック = 探索範囲の中心  |  黄色の円 = 半径  |  数字 = 候補地
+Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site	赤: しきい値を超える傾斜  |  ドラッグ = 回転、ホイール = ズーム、クリック = 候補地を選択
+Lune entière  |  rayon %s	月全体  |  半径 %s
+Carré de %s x %s (%s)	%s x %s の正方形 (%s)
+Cellule : %s  |  relief x%.1f	セル: %s  |  地形 x%.1f
+Sol	地表
+Analyse	分析
+Globe indisponible.	地球儀を利用できません。
+Lancez tools/prepare_globe.py	tools/prepare_globe.py を実行してください
+Exagération du relief	地形の強調
+Filtres du globe	地球儀のフィルター
+Aucun	なし
+Luminosité	照度
+Écart moyenne	平均差
+Rugosité	粗さ
+Lecture	再生
+Phase de la Lune à cette date	この日付の月相
+nuit	夜
+plein jour	昼
+Moyenne : %s   |   écart-type : %s	平均: %s   |   標準偏差: %s
+Minimum : %s   |   maximum : %s	最小: %s   |   最大: %s
+Altitude (échelle : moyenne ± 3 écarts-types)	標高（目盛り: 平均 ± 標準偏差3つ分）
+Écart à l'altitude moyenne, en écarts-types	平均標高からの差（標準偏差単位）
+-3 (bas)	-3（低い）
++3 (haut)	+3（高い）
+moyenne	平均
+Rugosité : écart-type local des altitudes	粗さ: 標高の局所的な標準偏差
+lisse	滑らか
+Points d'intérêt	注目地点
+Zoomez pour voir les noms, cliquez pour marquer.	拡大すると名前が表示されます。クリックでマーク。
+Point marqué : %s	マークした地点: %s
+Point marqué	マークした地点
+Altitude : %s	標高: %s
+Enregistrer ce point	この地点を保存
+Maximum de %d points atteint	地点数が上限（%d）に達しました
+Cliquez sur la Lune pour marquer un point.	月をクリックして地点をマークしてください。
+Saisir des coordonnées...	座標を入力...
+Points enregistrés	保存済みの地点
+Tout effacer	すべて消去
+Aucun pour l'instant.	まだありません。
+(cliquez sur un nom pour le modifier)	（名前をクリックして変更）
+Zone initiale : %.1f, %.1f (gris)	初期範囲: %.1f, %.1f（灰色）
+Relief LOLA et couleurs LRO (NASA)	LOLA 地形と LRO カラー（NASA）
+Zone x%.1f non préparée.	範囲 x%.1f は未準備です。
+Préparer cette zone	この範囲を準備
+Hors ligne : nécessite Python et un fichier LDEM.	オフライン: Python と LDEM ファイルが必要です。
+DEM : LOLA polaire (80 m)	DEM: LOLA 極域（80 m）
+DEM : mondial (ldem_64)	DEM: 全球（ldem_64）
+Zone initiale : taille non modifiable.	初期範囲: サイズは変更できません。
+Classement indisponible.	ランキングを利用できません。
+Ce site a une ancienne préparation.	このサイトの準備は古い形式です。
+Il faut les fichiers année + repères.	年間ファイルと基準フレームが必要です。
+Re-préparer ce site	このサイトを再準備
+Analyse annuelle requise (~ 5 s).	年間分析が必要です（約5秒）。
+Soleil et Terre vus de chaque case,	各セルから見た太陽と地球を、
+sur une année entière, relief inclus.	地形を含めて丸1年分計算します。
+Analyser l'année	年間を分析
+Rayon de recherche	探索半径
+Durée de la mission	ミッション期間
+Début de la mission	ミッション開始
+Survie	生存
+Glace	氷
+Relais	中継
+Relais disponible : oui	中継局: 利用可
+Relais disponible : non	中継局: 利用不可
+Priorités	優先度
+Contraintes	制約条件
+Énergie (Soleil)	エネルギー（太陽）
+Communication (Terre)	通信（地球）
+Stabilité thermique*	熱安定性*
+Sécurité du terrain	地形の安全性
+Intérêt scientifique (glace)	科学的関心（氷）
+ignoré	無視
+Aucune ombre permanente dans cette zone.	この範囲には永久影がありません。
+Pente maximale	最大傾斜
+Rugosité maximale	最大粗さ
+Nuit continue maximale	最長連続夜
+Ellipse d'atterrissage	着陸楕円
+Distance min. entre sites	候補地間の最小距離
+Meilleure date pour cette zone	この範囲の最適な日付
+Aucune date valide avec ces contraintes (voir ci-dessous).	この制約条件では有効な日付がありません（下記参照）。
+Résultats	結果
+Cases valides à cette date : %.0f %%	この日付の有効セル: %.0f %%
+Aucun site valide à cette date.	この日付に有効な候補地はありません。
+(le tableau montre les meilleurs sites éliminés)	（表には除外された上位の候補地を表示）
+terrain trop rugueux	地形が粗すぎる
+%s : %.0f %% des cases	%s: セルの %.0f %%
+Au-delà de 15 j, une nuit lunaire (~350 h)	15日を超えると、月の夜（約350時間）は
+est inévitable : réduisez la durée ou la limite.	避けられません。期間か上限を調整してください。
+Autoriser pente jusqu'à 25°	傾斜を25°まで許可
+Autoriser rugosité jusqu'à %s	粗さを %s まで許可
+Activer le relais de communication	通信中継を有効にする
+Autoriser nuit jusqu'à 400 h	夜を400時間まで許可
+Le classement et les notes sont dans le	ランキングとスコアは、3Dビュー左上の
+tableau en haut à gauche de la vue 3D.	表に表示されます。
+Analyse relue depuis le disque (rapide).	ディスクから分析を再読み込みしました（高速）。
+Analyse calculée puis enregistrée sur le disque.	分析を計算してディスクに保存しました。
+Exporter en CSV	CSVで出力
+Format : Excel FR (;)	形式: Excel FR (;)
+Format : international (,)	形式: 国際 (,)
+Ouvrir dossier	フォルダーを開く
+Couche affichée	表示レイヤー
+Orientation rapide	クイック方向
+Viser Soleil	太陽へ向く
+Viser Terre	地球へ向く
+Mode ingénieur : activé	エンジニアモード: オン
+Mode ingénieur : désactivé	エンジニアモード: オフ
+Date : J+%.1f	日付: D+%.1f
+Pente maximale admise	許容最大傾斜
+Exagération verticale	垂直方向の強調
+Aucun site sélectionné.	サイトが選択されていません。
+Cliquez sur le terrain.	地形をクリックしてください。
+Soleil visible : %.0f %%	太陽が見える割合: %.0f %%
+Terre visible : %.0f %%	地球が見える割合: %.0f %%
+Plus longue nuit : %.1f j	最長の夜: %.1f 日
+Plus longue coupure radio : %.1f j	最長の通信途絶: %.1f 日
+Cellule (x, y) : %d, %d	セル (x, y): %d, %d
+Altitude : %s   Pente : %.1f°	標高: %s   傾斜: %.1f°
+Soleil az/él : %.0f° / %.1f°	太陽 方位/高度: %.0f° / %.1f°
+Terre az/él : %.0f° / %.1f°	地球 方位/高度: %.0f° / %.1f°
+Pente compatible avec un atterrissage	着陸に適した傾斜
+Pente de %.0f° : trop forte	傾斜 %.0f°: 急すぎます
+Données FICTIVES (terrain et/ou éphémérides)	架空のデータ（地形または天体暦）
+Géométrie approx.	おおよその幾何
+Re-préparer	再準備
+Soleil	太陽
+Terre	地球
+Choisissez un site pour afficher ses fenêtres de lumière et de communication	サイトを選ぶと、日照と通信の時間帯が表示されます
+Zone initiale	初期範囲
+Année complète, site %d  |  fenêtre de mission en blanc  |  clic = choisir le début	通年、サイト %d  |  ミッション期間は白  |  クリック = 開始日を選択
+Site %d enregistré : point %s (voir l'onglet Globe).	サイト %d を保存しました: 地点 %s（「地球儀」タブを参照）。
+Impossible : %d points enregistrés au maximum.	できません: 保存できる地点は最大 %d 件です。
+Fichier	ファイル
+Nouveau point (coordonnées)...	新しい地点（座標）...
+Exporter le classement en CSV	ランキングをCSVで出力
+Ouvrir le dossier d'export	出力フォルダーを開く
+Quitter	終了
+Édition	編集
+Renommer le point actuel	現在の地点の名前を変更
+Supprimer le point actuel	現在の地点を削除
+Supprimer tous les points...	すべての地点を削除...
+Réinitialiser les réglages du classement	ランキングの設定をリセット
+Affichage	表示
+Sol (vue à 360°)	地表（360°ビュー）
+Zone plus grande	範囲を広げる
+Zone plus petite	範囲を狭める
+Plein écran	全画面表示
+Outils	ツール
+Préparer / re-préparer le site actuel	現在のサイトを準備 / 再準備
+Analyser l'année (onglet Analyse)	年間を分析（「分析」タブ）
+Oublier l'analyse enregistrée du site	サイトの保存済み分析を削除
+Format CSV : Excel FR (passer en international)	CSV形式: Excel FR（国際形式に切り替え）
+Format CSV : international (passer en Excel FR)	CSV形式: 国際（Excel FR に切り替え）
+Vérifier l'installation...	インストールの確認...
+Aide	ヘルプ
+Préférences (langue, unités)...	設定（言語・単位）...
+Préférences	設定
+Langue de l'interface	表示言語
+Unités de mesure	測定単位
+Métrique (m, km)	メートル法 (m, km)
+Impérial (ft, mi)	ヤード・ポンド法 (ft, mi)
+Les exports CSV restent toujours en unités métriques (m, km).	CSV出力は常にメートル法 (m, km) です。
+Ajouter une langue : copiez lang/_modele.txt en lang/xx.txt, traduisez la colonne de droite,	言語を追加: lang/_modele.txt を lang/xx.txt にコピーし、右の列を翻訳してください。
+puis ajoutez en première ligne  #name=NomDeLaLangue.  Aucune installation n'est nécessaire.	最初の行に  #name=言語名  を追加します。インストールは不要です。
+O	西
+N	北
+E	東
+S	南
+Globe	地球儀
+Site	サイト
+Date	日付
+Pause	一時停止
+Communication	通信
+Terrain	地形
+Science	科学
+Missions	ミッション
+Page %d / 2	%d / 2 ページ
+Apollo 11	アポロ11号
+Apollo 12	アポロ12号
+Apollo 14	アポロ14号
+Apollo 15	アポロ15号
+Apollo 16	アポロ16号
+Apollo 17	アポロ17号
+Chang'e 3	嫦娥3号
+Chang'e 4	嫦娥4号
+Chang'e 5	嫦娥5号
+Chandrayaan-3	チャンドラヤーン3号
+Tycho	ティコ
+Kepler	ケプラー
+Clavius	クラヴィウス
+Shackleton	シャクルトン
+Haworth	ハワース
+de Gerlache	ド・ジェルラシュ
+Faustini	ファウスティーニ
+Cabeus	カベウス
+Malapert	マラパート
+Nobile	ノビレ
+Amundsen	アムンゼン

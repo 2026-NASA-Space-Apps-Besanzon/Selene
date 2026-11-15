@@ -1,0 +1,442 @@
+#name=Русский
+Mer de la Tranquillité	Море Спокойствия
+Mer de la Sérénité	Море Ясности
+Mer des Crises	Море Кризисов
+Mer de la Fécondité	Море Изобилия
+Mer des Pluies	Море Дождей
+Mer des Nuées	Море Облаков
+Océan des Tempêtes	Океан Бурь
+Mer du Froid	Море Холода
+Mer des Humeurs	Море Влаги
+Mer Orientale	Восточное море
+Copernic	Коперник
+Aristarque	Аристарх
+Platon	Платон
+Bassin Pôle Sud-Aitken	Бассейн Южный полюс — Эйткен
+Reliefs	Формы рельефа
+Pôle Sud	Южный полюс
+Pôle Nord	Северный полюс
+Outil de préparation introuvable (voir Aide > Vérifier l'installation).	Инструмент подготовки не найден (см. Справка > Проверка установки).
+Point : %s	Точка: %s
+janv.	янв.
+févr.	февр.
+mars	март
+avr.	апр.
+mai	май
+juin	июнь
+juil.	июль
+août	авг.
+sept.	сент.
+oct.	окт.
+nov.	нояб.
+déc.	дек.
+excellent	отлично
+bon	хорошо
+moyen	средне
+faible	слабо
+hors zone étudiée	вне изучаемой зоны
+hors zone etudiee	вне изучаемой зоны
+nuit trop longue	слишком долгая ночь
+Terre jamais visible	Земля никогда не видна
+pente trop forte	слишком крутой уклон
+terrain rugueux	шероховатая местность
+Classement des sites	Рейтинг площадок
+Point choisi (clic sur le terrain) : %.2f, %.2f	Выбранная точка (щелчок по местности): %.2f, %.2f
+Note %.0f / 100   (%s)	Оценка %.0f / 100   (%s)
+Éliminé : %s	Исключена: %s
+Aucun site à classer dans cette zone.	В этой зоне нет площадок для оценки.
+%.2f, %.2f   Soleil %.0f %%   Terre %.0f %%   nuit %.0f h	%.2f, %.2f   Солнце %.0f %%   Земля %.0f %%   ночь %.0f ч
+#%d    %.0f / 100    ÉLIMINÉ	#%d    %.0f / 100    ИСКЛЮЧЕНА
+Meilleure date : %s  (note %.0f)	Лучшая дата: %s  (оценка %.0f)
+Meilleure date : aucune date valide pour ce site	Лучшая дата: нет подходящей даты для этой площадки
+Stabilité : %.0f %%  (30 jeux de poids perturbés de 30 %%)	Устойчивость: %.0f %%  (30 наборов весов, изменённых на 30 %%)
+Stabilité : calculée au relâchement du curseur	Устойчивость: считается после отпускания ползунка
+Stabilité : sans objet (site éliminé)	Устойчивость: неприменимо (площадка исключена)
+critère	критерий
+sous-note (0 à 1)	подоценка (от 0 до 1)
+poids	вес
+Énergie	Энергия
+Thermique*	Тепловой*
+Science (ignorée)	Наука (игнорируется)
+pente %.1f°   rugosité %s   marge Terre %.1f°	уклон %.1f°   шероховатость %s   запас по Земле %.1f°
+Garder ce site comme point enregistré	Сохранить эту площадку как точку
+Note = moyenne géométrique pondérée des 5 critères (poids = curseurs).	Оценка = взвешенное среднее геометрическое 5 критериев (веса = ползунки).
+* Thermique : cycles lumière/ombre, ce n'est pas une température.	* Тепловой: циклы свет/тень, а не температура.
+Impossible d'écrire dans le dossier exports/	Не удаётся записать в папку exports/
+rang	место
+note_sur_100	оценка_из_100
+valide	допустима
+raison_elimination	причина_исключения
+altitude_m	высота_м
+pente_deg	уклон_град
+rugosite_m	шероховатость_м
+soleil_pct	солнце_проц
+terre_pct	земля_проц
+nuit_max_h	макс_ночь_ч
+marge_terre_deg	запас_земли_град
+note_energie	оценка_энергия
+note_communication	оценка_связь
+note_thermique_indicateur	оценка_тепловая_индикатор
+note_terrain	оценка_местность
+note_science	оценка_наука
+meilleur_debut	лучшее_начало
+note_au_meilleur_debut	оценка_при_лучшем_начале
+stabilite_pct	устойчивость_проц
+pente_pire_cas_ellipse_deg	уклон_худший_случай_эллипс_град
+ombre_permanente	постоянная_тень
+dans_zone_recherche	в_зоне_поиска
+pas_6h	шаг_6ч
+date_heure_utc	дата_время_utc
+soleil_visible_pct	солнце_видно_проц
+terre_visible_pct	земля_видна_проц
+parametre	параметр
+valeur	значение
+logiciel	программа
+date_export	дата_экспорта
+zone initiale	начальная зона
+latitude_point_central	широта_центральной_точки
+longitude_point_central	долгота_центральной_точки
+taille_zone_km	размер_зоны_км
+taille_cellule_m	размер_ячейки_м
+rayon_recherche_km	радиус_поиска_км
+duree_mission_jours	длительность_миссии_сут
+debut_mission	начало_миссии
+poids_energie	вес_энергия
+poids_communication	вес_связь
+poids_thermique	вес_тепловой
+poids_terrain	вес_местность
+poids_science	вес_наука
+critere_science_ignore	критерий_наука_игнорируется
+pente_max_deg	макс_уклон_град
+rugosite_max_m	макс_шероховатость_м
+nuit_continue_max_h	макс_непрерывная_ночь_ч
+ellipse_atterrissage_m	эллипс_посадки_м
+distance_min_entre_sites_km	мин_расстояние_между_площадками_км
+relais_disponible	ретранслятор_доступен
+cases_etudiees	изучено_ячеек
+cases_valides	допустимых_ячеек
+elimination_pente_pct	исключение_уклон_проц
+elimination_rugosite_pct	исключение_шероховатость_проц
+elimination_terre_pct	исключение_земля_проц
+elimination_nuit_pct	исключение_ночь_проц
+cases_ombre_permanente	ячеек_постоянной_тени
+%d fichiers écrits dans exports/ (%s_...)	Записано файлов: %d в exports/ (%s_...)
+Latitude invalide : un nombre entre -90 et 90 (ex. -89,9 ou 89.9 S).	Неверная широта: число от -90 до 90 (напр. -89,9 или 89.9 S).
+Longitude invalide : un nombre entre -180 et 360 (ex. 45 ou 120 O).	Неверная долгота: число от -180 до 360 (напр. 45 или 120 W).
+PRISE EN MAIN	С ЧЕГО НАЧАТЬ
+1.  Onglet GLOBE : tournez la Lune (glisser), zoomez (molette), cliquez pour marquer un point,	1.  Вкладка ГЛОБУС: вращайте Луну (перетаскивание), масштаб (колесо), щёлкните, чтобы отметить точку,
+     puis « Enregistrer ce point », ou saisissez des coordonnées (Fichier > Nouveau point, Ctrl+N).	     затем «Сохранить эту точку» или введите координаты (Файл > Новая точка, Ctrl+N).
+     Filtres : luminosité à une date, topographie (altitude, écart à la moyenne, rugosité), points d'intérêt.	     Фильтры: освещение на дату, топография (высота, отклонение от среднего, шероховатость), интересные места.
+     Cliquez sur le nom d'un point pour le renommer.	     Щёлкните по имени точки, чтобы переименовать её.
+2.  Bouton « Site » à côté d'un point : ouvre le relief détaillé autour de ce point.	2.  Кнопка «Площадка» рядом с точкой: открывает подробный рельеф вокруг неё.
+     Si la zone n'est pas encore préparée, cliquez sur « Préparer cette zone » (quelques secondes).	     Если зона ещё не подготовлена, нажмите «Подготовить зону» (несколько секунд).
+3.  Onglet SITE : le Soleil et la Terre sont-ils visibles ? sur 30 jours, avec la pente du terrain.	3.  Вкладка ПЛОЩАДКА: видны ли Солнце и Земля? За 30 дней, с уклоном местности.
+     Les boutons - et + (en haut à droite) agrandissent ou réduisent la zone étudiée.	     Кнопки - и + (вверху справа) увеличивают или уменьшают изучаемую зону.
+4.  Onglet SOL : la vue à 360° depuis le point choisi, avec le Soleil et la Terre dans le ciel.	4.  Вкладка ПОВЕРХНОСТЬ: обзор на 360° из выбранной точки, с Солнцем и Землёй на небе.
+5.  Onglet ANALYSE : classe automatiquement des sites d'atterrissage autour d'un point.	5.  Вкладка АНАЛИЗ: автоматически оценивает посадочные площадки вокруг точки.
+TERMES UTILES	ПОЛЕЗНЫЕ ТЕРМИНЫ
+-  Nuit lunaire : environ 14,8 jours d'obscurité (350 h) en dehors des pôles.	-  Лунная ночь: около 14,8 суток темноты (350 ч) вне полюсов.
+-  Ombre permanente : zone où le Soleil ne se lève jamais, là où l'on peut trouver de la glace.	-  Постоянная тень: зона, где Солнце никогда не восходит, там может быть лёд.
+-  Terre visible : permet une liaison radio directe. Au fond d'un cratère, elle est souvent cachée.	-  Земля видна: возможна прямая радиосвязь. На дне кратера она часто скрыта.
+Les données viennent du laser altimètre LOLA et de la caméra LROC (sonde NASA LRO).	Данные получены лазерным альтиметром LOLA и камерой LROC (аппарат NASA LRO).
+L'ONGLET ANALYSE	ВКЛАДКА АНАЛИЗ
+1.  Cliquez sur « Analyser l'année » (une seule fois par site : le résultat est enregistré).	1.  Нажмите «Анализ года» (один раз на площадку: результат сохраняется).
+2.  Cliquez sur le terrain pour choisir le centre de la zone de recherche, réglez le rayon.	2.  Щёлкните по местности, чтобы выбрать центр зоны поиска, задайте радиус.
+3.  Réglez la durée de la mission, sa date de début (ou « Meilleure date »), les priorités.	3.  Задайте длительность миссии, дату начала (или «Лучшая дата») и приоритеты.
+4.  Le tableau en haut à gauche de la vue 3D donne les 5 meilleurs sites avec leur note sur 100.	4.  Таблица вверху слева в 3D-виде показывает 5 лучших площадок с оценкой из 100.
+5.  Sur la carte : VERT = site valide (plus clair = meilleure note), ROUGE = éliminé, VIOLET = ombre.	5.  На карте: ЗЕЛЁНЫЙ = подходящая площадка (светлее = лучше), КРАСНЫЙ = исключена, ФИОЛЕТОВЫЙ = тень.
+COMMENT LA NOTE EST CALCULÉE	КАК СЧИТАЕТСЯ ОЦЕНКА
+Filtres éliminatoires : pente, rugosité du terrain, Terre jamais visible, nuit trop longue.	Отсеивающие фильтры: уклон, шероховатость, Земля никогда не видна, слишком долгая ночь.
+Puis une moyenne pondérée de 5 critères : Énergie, Communication, Thermique*, Terrain, Science.	Затем взвешенное среднее 5 критериев: Энергия, Связь, Тепловой*, Местность, Наука.
+Les poids sont les curseurs « Priorités » ; les profils Survie, Glace et Relais les règlent d'un clic.	Веса задаются ползунками «Приоритеты»; профили Выживание, Лёд и Ретранслятор настраивают их одним щелчком.
+* Thermique : indicateur de cycles lumière/ombre, ce n'est pas une température.	* Тепловой: показатель циклов свет/тень, а не температура.
+EXPORT : menu Fichier > Exporter en CSV (4 fichiers dans le dossier exports).	ЭКСПОРТ: меню Файл > Экспорт в CSV (4 файла в папке exports).
+Limites : relief à 200 m par case (blocs et petits cratères invisibles), un seul mois ou un an modélisé.	Ограничения: рельеф 200 м на ячейку (валуны и малые кратеры не видны), моделируется один месяц или год.
+RACCOURCIS CLAVIER	СОЧЕТАНИЯ КЛАВИШ
+Ctrl + 1 / 2 / 3 / 4      Globe / Site / Sol / Analyse	Ctrl + 1 / 2 / 3 / 4      Глобус / Площадка / Поверхность / Анализ
+Ctrl + E                  Exporter le classement en CSV	Ctrl + E                  Экспорт рейтинга в CSV
+Ctrl + N                  Nouveau point (saisie de coordonnées)	Ctrl + N                  Новая точка (ввод координат)
+Ctrl + ,                  Préférences (langue, unités)	Ctrl + ,                  Настройки (язык, единицы)
+F1                        Guide d'utilisation	F1                        Руководство
+F2                        Renommer le point actuel	F2                        Переименовать текущую точку
+F11                       Plein écran	F11                       Полный экран
+Échap                     Fermer un menu ou une fenêtre, annuler une saisie	Esc                       Закрыть меню или окно, отменить ввод
+SOURIS	МЫШЬ
+Glisser                   Tourner la caméra (Globe, Site, Analyse) ou regarder autour (Sol)	Перетаскивание            Вращать камеру (Глобус, Площадка, Анализ) или осматриваться (Поверхность)
+Molette                   Zoom (Globe, Site, Analyse) ; défilement du panneau (Analyse)	Колесо                    Масштаб (Глобус, Площадка, Анализ); прокрутка панели (Анализ)
+Clic                      Marquer un point (Globe), choisir un site (Site, Analyse)	Щелчок                    Отметить точку (Глобус), выбрать площадку (Площадка, Анализ)
+SELENE  -  planificateur de site d'atterrissage lunaire	SELENE  -  планировщик площадок для посадки на Луну
+Projet réalisé pour le NASA Space Apps Challenge 2026.	Проект создан для NASA Space Apps Challenge 2026.
+Données : NASA / LRO (altimètre LOLA, caméra LROC), domaine public.	Данные: NASA / LRO (альтиметр LOLA, камера LROC), общественное достояние.
+Éphémérides : modèle analytique de Jean Meeus (Astronomical Algorithms), hors ligne.	Эфемериды: аналитическая модель Жана Мёса (Astronomical Algorithms), без сети.
+Interface : raylib (licence zlib). Compression : sdefl / sinfl (domaine public).	Интерфейс: raylib (лицензия zlib). Сжатие: sdefl / sinfl (общественное достояние).
+Les résultats sont des estimations pour la démonstration :	Результаты — оценки для демонстрации:
+ils ne remplacent pas une étude de mission.	они не заменяют исследование миссии.
+Guide d'utilisation	Руководство
+Raccourcis clavier	Сочетания клавиш
+À propos de Selene	О программе Selene
+Vérification de l'installation	Проверка установки
+Supprimer tous les points ?	Удалить все точки?
+Nouveau point : saisie des coordonnées	Новая точка: ввод координат
+Globe lunaire (relief et couleurs)	Лунный глобус (рельеф и цвета)
+Manquant : lancez tools/prepare_globe.py une fois (voir LISEZMOI.txt).	Отсутствует: один раз запустите tools/prepare_globe.py (см. LISEZMOI.txt).
+Outil de préparation des sites	Инструмент подготовки площадок
+Python détecté : tools/prepare_data.py	Найден Python: tools/prepare_data.py
+Manquant : placez tools/prepare_data.exe, ou installez Python + rasterio.	Отсутствует: поместите tools/prepare_data.exe или установите Python + rasterio.
+Relief LOLA du pôle Sud (80 m par pixel)	Рельеф LOLA южного полюса (80 м на пиксель)
+Absent : placez LDEM_80S_80MPP_ADJ.tiff dans le dossier data/source.	Нет файла: поместите LDEM_80S_80MPP_ADJ.tiff в папку data/source.
+Relief LOLA mondial (hors pôle Sud)	Глобальный рельеф LOLA (вне южного полюса)
+Absent : placez ldem_64 ou LDEM128 (.tif) dans le dossier data/source.	Нет файла: поместите ldem_64 или LDEM128 (.tif) в папку data/source.
+%d site(s) déjà préparé(s) sur %d point(s) enregistré(s)	Подготовлено площадок: %d из %d сохранённых точек
+Les sites préparés s'ouvrent sans aucune installation supplémentaire.	Подготовленные площадки открываются без дополнительной установки.
+Sans les fichiers de relief, vous pouvez quand même utiliser tous les sites déjà préparés.	Даже без файлов рельефа можно пользоваться всеми уже подготовленными площадками.
+Ouvrir le dossier des données	Открыть папку данных
+Latitude  (de -90 à 90, ex. -89,9  ou  89.9 S)	Широта  (от -90 до 90, напр. -89,9  или  89.9 S)
+Longitude  (Est positif, ex. 45  ou  120 O)	Долгота  (восток положительный, напр. 45  или  120 W)
+Nom du point  (facultatif)	Название точки  (необязательно)
+Entrée : enregistrer   |   Tab : champ suivant   |   Échap : annuler	Enter: сохранить   |   Tab: следующее поле   |   Esc: отмена
+%d point(s) enregistré(s) vont être retirés de la liste et du globe.	Сохранённых точек будет удалено из списка и с глобуса: %d.
+Les sites déjà préparés restent sur le disque (aucun fichier n'est effacé).	Подготовленные площадки остаются на диске (файлы не удаляются).
+Cette action est définitive.	Это действие необратимо.
+Précédent	Назад
+Suivant	Далее
+Annuler	Отмена
+Tout supprimer	Удалить все
+Marquer seulement	Только отметить
+Enregistrer	Сохранить
+Fermer	Закрыть
+Planificateur de site lunaire	Планировщик лунных площадок
+Dossier « data » introuvable à côté de selene.exe : données fictives. Placez selene.exe dans le dossier du projet.	Папка «data» не найдена рядом с selene.exe: используются условные данные. Поместите selene.exe в папку проекта.
+Éclairement solaire	Солнечное освещение
+Visibilité de la Terre	Видимость Земли
+Altitude	Высота
+Pente	Уклон
+Globe indisponible : voir Aide > Vérifier l'installation.	Глобус недоступен: см. Справка > Проверка установки.
+Ouvrez l'onglet Analyse et lancez l'analyse avant d'exporter.	Откройте вкладку Анализ и запустите анализ перед экспортом.
+Sélectionnez d'abord un point enregistré (onglet Globe, bouton « Site »).	Сначала выберите сохранённую точку (вкладка Глобус, кнопка «Площадка»).
+Point supprimé.	Точка удалена.
+Aucun point enregistré n'est sélectionné.	Сохранённая точка не выбрана.
+Réglages du classement réinitialisés.	Настройки рейтинга сброшены.
+Choisissez d'abord un point enregistré (onglet Globe).	Сначала выберите сохранённую точку (вкладка Глобус).
+Ce site doit être re-préparé (Outils > Préparer / re-préparer).	Эту площадку нужно подготовить заново (Сервис > Подготовить / подготовить заново).
+Analyse enregistrée supprimée pour ce site.	Сохранённый анализ для этой площадки удалён.
+Aucune analyse enregistrée pour ce site.	Для этой площадки нет сохранённого анализа.
+Export CSV : format Excel français (; et virgule).	Экспорт CSV: французский формат Excel (; и запятая).
+Export CSV : format international (, et point).	Экспорт CSV: международный формат (, и точка).
+Aucun point à supprimer.	Нет точек для удаления.
+Point « %s » enregistré (%.3f, %.3f).	Точка «%s» сохранена (%.3f, %.3f).
+Maximum de points atteint : supprimez-en un d'abord.	Достигнуто максимальное число точек: сначала удалите одну.
+Point marqué : %.3f, %.3f.	Точка отмечена: %.3f, %.3f.
+%d point(s) supprimé(s).	Удалено точек: %d.
+Préparation du site (quelques secondes)...	Подготовка площадки (несколько секунд)...
+Chargement du site (calcul de l'éclairement)...	Загрузка площадки (расчёт освещения)...
+Chargement de l'analyse enregistrée...	Загрузка сохранённого анализа...
+Analyse de l'année complète (quelques secondes)...	Анализ полного года (несколько секунд)...
+Soleil (%.1f°)	Солнце (%.1f°)
+Soleil (masqué)	Солнце (скрыто)
+Terre (%.1f°)	Земля (%.1f°)
+Terre (masquée)	Земля (скрыта)
+Vert : site valide (plus clair = meilleure note)  |  Rouge : éliminé par un filtre  |  Violet : ombre permanente	Зелёный: подходящая площадка (светлее = лучше)  |  Красный: исключена фильтром  |  Фиолетовый: постоянная тень
+Site non préparé	Площадка не подготовлена
+Zone : %s	Зона: %s
+Zone : x%.1f	Зона: x%.1f
+Glisser = tourner  |  molette = zoom  |  clic = marquer un point	Перетаскивание = вращение  |  колесо = масштаб  |  щелчок = отметить точку
+Glisser = regarder autour (360°)  |  relief réel x1	Перетаскивание = осмотр (360°)  |  реальный рельеф x1
+Clic = centre de la zone de recherche  |  cercle jaune = rayon  |  chiffres = sites candidats	Щелчок = центр зоны поиска  |  жёлтый круг = радиус  |  цифры = площадки-кандидаты
+Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site	Красный: уклон выше порога  |  перетаскивание = вращение, колесо = масштаб, щелчок = выбор площадки
+Lune entière  |  rayon %s	Вся Луна  |  радиус %s
+Carré de %s x %s (%s)	Квадрат %s x %s (%s)
+Cellule : %s  |  relief x%.1f	Ячейка: %s  |  рельеф x%.1f
+Sol	Поверхность
+Analyse	Анализ
+Globe indisponible.	Глобус недоступен.
+Lancez tools/prepare_globe.py	Запустите tools/prepare_globe.py
+Exagération du relief	Усиление рельефа
+Filtres du globe	Фильтры глобуса
+Aucun	Нет
+Luminosité	Освещение
+Écart moyenne	От среднего
+Rugosité	Шероховатость
+Lecture	Пуск
+Phase de la Lune à cette date	Фаза Луны на эту дату
+nuit	ночь
+plein jour	день
+Moyenne : %s   |   écart-type : %s	Среднее: %s   |   станд. откл.: %s
+Minimum : %s   |   maximum : %s	Минимум: %s   |   максимум: %s
+Altitude (échelle : moyenne ± 3 écarts-types)	Высота (шкала: среднее ± 3 станд. отклонения)
+Écart à l'altitude moyenne, en écarts-types	Отклонение от средней высоты, в стандартных отклонениях
+-3 (bas)	-3 (низко)
++3 (haut)	+3 (высоко)
+moyenne	среднее
+Rugosité : écart-type local des altitudes	Шероховатость: локальное стандартное отклонение высот
+lisse	гладко
+Points d'intérêt	Интересные места
+Zoomez pour voir les noms, cliquez pour marquer.	Приблизьте, чтобы увидеть названия, щёлкните, чтобы отметить.
+Point marqué : %s	Точка отмечена: %s
+Point marqué	Точка отмечена
+Altitude : %s	Высота: %s
+Enregistrer ce point	Сохранить эту точку
+Maximum de %d points atteint	Достигнут максимум: %d точек
+Cliquez sur la Lune pour marquer un point.	Щёлкните по Луне, чтобы отметить точку.
+Saisir des coordonnées...	Ввести координаты...
+Points enregistrés	Сохранённые точки
+Tout effacer	Очистить всё
+Aucun pour l'instant.	Пока нет.
+(cliquez sur un nom pour le modifier)	(щёлкните по названию, чтобы изменить)
+Zone initiale : %.1f, %.1f (gris)	Начальная зона: %.1f, %.1f (серая)
+Relief LOLA et couleurs LRO (NASA)	Рельеф LOLA и цвета LRO (NASA)
+Zone x%.1f non préparée.	Зона x%.1f не подготовлена.
+Préparer cette zone	Подготовить зону
+Hors ligne : nécessite Python et un fichier LDEM.	Без сети: нужны Python и файл LDEM.
+DEM : LOLA polaire (80 m)	DEM: полярный LOLA (80 м)
+DEM : mondial (ldem_64)	DEM: глобальный (ldem_64)
+Zone initiale : taille non modifiable.	Начальная зона: размер изменить нельзя.
+Classement indisponible.	Рейтинг недоступен.
+Ce site a une ancienne préparation.	У этой площадки устаревшая подготовка.
+Il faut les fichiers année + repères.	Нужны файлы года и опорных систем.
+Re-préparer ce site	Подготовить заново
+Analyse annuelle requise (~ 5 s).	Нужен годовой анализ (~ 5 с).
+Soleil et Terre vus de chaque case,	Солнце и Земля из каждой ячейки,
+sur une année entière, relief inclus.	за целый год, с учётом рельефа.
+Analyser l'année	Анализ года
+Rayon de recherche	Радиус поиска
+Durée de la mission	Длительность миссии
+Début de la mission	Начало миссии
+Survie	Выжив.
+Glace	Лёд
+Relais	Реле
+Relais disponible : oui	Ретранслятор доступен: да
+Relais disponible : non	Ретранслятор доступен: нет
+Priorités	Приоритеты
+Contraintes	Ограничения
+Énergie (Soleil)	Энергия (Солнце)
+Communication (Terre)	Связь (Земля)
+Stabilité thermique*	Тепловая устойчивость*
+Sécurité du terrain	Безопасность местности
+Intérêt scientifique (glace)	Научный интерес (лёд)
+ignoré	игнор.
+Aucune ombre permanente dans cette zone.	В этой зоне нет постоянной тени.
+Pente maximale	Макс. уклон
+Rugosité maximale	Макс. шероховатость
+Nuit continue maximale	Макс. непрерывная ночь
+Ellipse d'atterrissage	Эллипс посадки
+Distance min. entre sites	Мин. расстояние между площадками
+Meilleure date pour cette zone	Лучшая дата для этой зоны
+Aucune date valide avec ces contraintes (voir ci-dessous).	Нет подходящей даты при этих ограничениях (см. ниже).
+Résultats	Результаты
+Cases valides à cette date : %.0f %%	Допустимых ячеек на эту дату: %.0f %%
+Aucun site valide à cette date.	Нет подходящих площадок на эту дату.
+(le tableau montre les meilleurs sites éliminés)	(в таблице показаны лучшие исключённые площадки)
+terrain trop rugueux	слишком шероховатая местность
+%s : %.0f %% des cases	%s: %.0f %% ячеек
+Au-delà de 15 j, une nuit lunaire (~350 h)	Свыше 15 сут лунная ночь (~350 ч)
+est inévitable : réduisez la durée ou la limite.	неизбежна: уменьшите длительность или предел.
+Autoriser pente jusqu'à 25°	Разрешить уклон до 25°
+Autoriser rugosité jusqu'à %s	Разрешить шероховатость до %s
+Activer le relais de communication	Включить ретранслятор связи
+Autoriser nuit jusqu'à 400 h	Разрешить ночь до 400 ч
+Le classement et les notes sont dans le	Рейтинг и оценки находятся в
+tableau en haut à gauche de la vue 3D.	таблице вверху слева в 3D-виде.
+Analyse relue depuis le disque (rapide).	Анализ считан с диска (быстро).
+Analyse calculée puis enregistrée sur le disque.	Анализ рассчитан и сохранён на диск.
+Exporter en CSV	Экспорт в CSV
+Format : Excel FR (;)	Формат: Excel FR (;)
+Format : international (,)	Формат: международный (,)
+Ouvrir dossier	Открыть папку
+Couche affichée	Показываемый слой
+Orientation rapide	Быстрая ориентация
+Viser Soleil	На Солнце
+Viser Terre	На Землю
+Mode ingénieur : activé	Режим инженера: вкл.
+Mode ingénieur : désactivé	Режим инженера: выкл.
+Date : J+%.1f	Дата: Д+%.1f
+Pente maximale admise	Допустимый макс. уклон
+Exagération verticale	Вертикальное усиление
+Aucun site sélectionné.	Площадка не выбрана.
+Cliquez sur le terrain.	Щёлкните по местности.
+Soleil visible : %.0f %%	Солнце видно: %.0f %%
+Terre visible : %.0f %%	Земля видна: %.0f %%
+Plus longue nuit : %.1f j	Самая долгая ночь: %.1f сут.
+Plus longue coupure radio : %.1f j	Самый долгий перерыв связи: %.1f сут.
+Cellule (x, y) : %d, %d	Ячейка (x, y): %d, %d
+Altitude : %s   Pente : %.1f°	Высота: %s   Уклон: %.1f°
+Soleil az/él : %.0f° / %.1f°	Солнце аз/в: %.0f° / %.1f°
+Terre az/él : %.0f° / %.1f°	Земля аз/в: %.0f° / %.1f°
+Pente compatible avec un atterrissage	Уклон допустим для посадки
+Pente de %.0f° : trop forte	Уклон %.0f°: слишком крутой
+Données FICTIVES (terrain et/ou éphémérides)	УСЛОВНЫЕ данные (местность и/или эфемериды)
+Géométrie approx.	Прибл. геометрия
+Re-préparer	Заново
+Soleil	Солнце
+Terre	Земля
+Choisissez un site pour afficher ses fenêtres de lumière et de communication	Выберите площадку, чтобы показать окна света и связи
+Zone initiale	Начальная зона
+Année complète, site %d  |  fenêtre de mission en blanc  |  clic = choisir le début	Весь год, площадка %d  |  окно миссии белым  |  щелчок = выбрать начало
+Site %d enregistré : point %s (voir l'onglet Globe).	Площадка %d сохранена: точка %s (см. вкладку Глобус).
+Impossible : %d points enregistrés au maximum.	Невозможно: максимум %d сохранённых точек.
+Fichier	Файл
+Nouveau point (coordonnées)...	Новая точка (координаты)...
+Exporter le classement en CSV	Экспорт рейтинга в CSV
+Ouvrir le dossier d'export	Открыть папку экспорта
+Quitter	Выход
+Édition	Правка
+Renommer le point actuel	Переименовать текущую точку
+Supprimer le point actuel	Удалить текущую точку
+Supprimer tous les points...	Удалить все точки...
+Réinitialiser les réglages du classement	Сбросить настройки рейтинга
+Affichage	Вид
+Sol (vue à 360°)	Поверхность (обзор 360°)
+Zone plus grande	Больше зона
+Zone plus petite	Меньше зона
+Plein écran	Полный экран
+Outils	Сервис
+Préparer / re-préparer le site actuel	Подготовить / подготовить заново текущую площадку
+Analyser l'année (onglet Analyse)	Анализ года (вкладка Анализ)
+Oublier l'analyse enregistrée du site	Забыть сохранённый анализ площадки
+Format CSV : Excel FR (passer en international)	Формат CSV: Excel FR (переключить на международный)
+Format CSV : international (passer en Excel FR)	Формат CSV: международный (переключить на Excel FR)
+Vérifier l'installation...	Проверка установки...
+Aide	Справка
+Préférences (langue, unités)...	Настройки (язык, единицы)...
+Préférences	Настройки
+Langue de l'interface	Язык интерфейса
+Unités de mesure	Единицы измерения
+Métrique (m, km)	Метрические (м, км)
+Impérial (ft, mi)	Британские (фут, миля)
+Les exports CSV restent toujours en unités métriques (m, km).	Экспорт CSV всегда использует метрические единицы (м, км).
+Ajouter une langue : copiez lang/_modele.txt en lang/xx.txt, traduisez la colonne de droite,	Добавить язык: скопируйте lang/_modele.txt в lang/xx.txt, переведите правый столбец,
+puis ajoutez en première ligne  #name=NomDeLaLangue.  Aucune installation n'est nécessaire.	затем добавьте первой строкой  #name=НазваниеЯзыка.  Устанавливать ничего не нужно.
+O	З
+N	С
+E	В
+S	Ю
+Globe	Глобус
+Site	Площадка
+Date	Дата
+Pause	Пауза
+Communication	Связь
+Terrain	Местность
+Science	Наука
+Missions	Миссии
+Page %d / 2	Страница %d / 2
+Apollo 11	Аполлон-11
+Apollo 12	Аполлон-12
+Apollo 14	Аполлон-14
+Apollo 15	Аполлон-15
+Apollo 16	Аполлон-16
+Apollo 17	Аполлон-17
+Chang'e 3	Чанъэ-3
+Chang'e 4	Чанъэ-4
+Chang'e 5	Чанъэ-5
+Chandrayaan-3	Чандраян-3
+Tycho	Тихо
+Kepler	Кеплер
+Clavius	Клавий
+Shackleton	Шеклтон
+Haworth	Хауорт
+de Gerlache	де Жерлаш
+Faustini	Фаустини
+Cabeus	Кабеус
+Malapert	Малаперт
+Nobile	Нобиле
+Amundsen	Амундсен

@@ -1,0 +1,409 @@
+#name=English
+Mer de la Tranquillité	Sea of Tranquility
+Mer de la Sérénité	Sea of Serenity
+Mer des Crises	Sea of Crises
+Mer de la Fécondité	Sea of Fecundity
+Mer des Pluies	Sea of Rains
+Mer des Nuées	Sea of Clouds
+Océan des Tempêtes	Ocean of Storms
+Mer du Froid	Sea of Cold
+Mer des Humeurs	Sea of Moisture
+Mer Orientale	Eastern Sea
+Copernic	Copernicus
+Aristarque	Aristarchus
+Platon	Plato
+Bassin Pôle Sud-Aitken	South Pole-Aitken Basin
+Reliefs	Landforms
+Pôle Sud	South Pole
+Pôle Nord	North Pole
+Outil de préparation introuvable (voir Aide > Vérifier l'installation).	Preparation tool not found (see Help > Check installation).
+Point : %s	Point: %s
+janv.	Jan
+févr.	Feb
+mars	Mar
+avr.	Apr
+mai	May
+juin	Jun
+juil.	Jul
+août	Aug
+sept.	Sep
+oct.	Oct
+nov.	Nov
+déc.	Dec
+excellent	excellent
+bon	good
+moyen	average
+faible	poor
+hors zone étudiée	outside study area
+hors zone etudiee	outside study area
+nuit trop longue	night too long
+Terre jamais visible	Earth never visible
+pente trop forte	slope too steep
+terrain rugueux	rough terrain
+Classement des sites	Site ranking
+Point choisi (clic sur le terrain) : %.2f, %.2f	Selected point (click on the terrain): %.2f, %.2f
+Note %.0f / 100   (%s)	Score %.0f / 100   (%s)
+Éliminé : %s	Eliminated: %s
+Aucun site à classer dans cette zone.	No site to rank in this area.
+%.2f, %.2f   Soleil %.0f %%   Terre %.0f %%   nuit %.0f h	%.2f, %.2f   Sun %.0f %%   Earth %.0f %%   night %.0f h
+#%d    %.0f / 100    ÉLIMINÉ	#%d    %.0f / 100    ELIMINATED
+Meilleure date : %s  (note %.0f)	Best date: %s  (score %.0f)
+Meilleure date : aucune date valide pour ce site	Best date: no valid date for this site
+Stabilité : %.0f %%  (30 jeux de poids perturbés de 30 %%)	Stability: %.0f %%  (30 weight sets perturbed by 30 %%)
+Stabilité : calculée au relâchement du curseur	Stability: computed when the slider is released
+Stabilité : sans objet (site éliminé)	Stability: not applicable (site eliminated)
+critère	criterion
+sous-note (0 à 1)	sub-score (0 to 1)
+poids	weight
+Énergie	Energy
+Thermique*	Thermal*
+Science (ignorée)	Science (ignored)
+pente %.1f°   rugosité %s   marge Terre %.1f°	slope %.1f°   roughness %s   Earth margin %.1f°
+Garder ce site comme point enregistré	Keep this site as a saved point
+Note = moyenne géométrique pondérée des 5 critères (poids = curseurs).	Score = weighted geometric mean of the 5 criteria (weights = sliders).
+* Thermique : cycles lumière/ombre, ce n'est pas une température.	* Thermal: light/shadow cycles, not a temperature.
+Impossible d'écrire dans le dossier exports/	Cannot write to the exports/ folder
+rang	rank
+note_sur_100	score_out_of_100
+valide	valid
+raison_elimination	elimination_reason
+altitude_m	elevation_m
+pente_deg	slope_deg
+rugosite_m	roughness_m
+soleil_pct	sun_pct
+terre_pct	earth_pct
+nuit_max_h	max_night_h
+marge_terre_deg	earth_margin_deg
+note_energie	energy_score
+note_communication	communication_score
+note_thermique_indicateur	thermal_score_indicator
+note_terrain	terrain_score
+note_science	science_score
+meilleur_debut	best_start
+note_au_meilleur_debut	score_at_best_start
+stabilite_pct	stability_pct
+pente_pire_cas_ellipse_deg	worst_case_ellipse_slope_deg
+ombre_permanente	permanent_shadow
+dans_zone_recherche	in_search_area
+pas_6h	step_6h
+date_heure_utc	datetime_utc
+soleil_visible_pct	sun_visible_pct
+terre_visible_pct	earth_visible_pct
+parametre	parameter
+valeur	value
+logiciel	software
+date_export	export_date
+zone initiale	initial area
+latitude_point_central	center_point_latitude
+longitude_point_central	center_point_longitude
+taille_zone_km	area_size_km
+taille_cellule_m	cell_size_m
+rayon_recherche_km	search_radius_km
+duree_mission_jours	mission_duration_days
+debut_mission	mission_start
+poids_energie	weight_energy
+poids_communication	weight_communication
+poids_thermique	weight_thermal
+poids_terrain	weight_terrain
+poids_science	weight_science
+critere_science_ignore	science_criterion_ignored
+pente_max_deg	max_slope_deg
+rugosite_max_m	max_roughness_m
+nuit_continue_max_h	max_continuous_night_h
+ellipse_atterrissage_m	landing_ellipse_m
+distance_min_entre_sites_km	min_distance_between_sites_km
+relais_disponible	relay_available
+cases_etudiees	cells_studied
+cases_valides	cells_valid
+elimination_pente_pct	elimination_slope_pct
+elimination_rugosite_pct	elimination_roughness_pct
+elimination_terre_pct	elimination_earth_pct
+elimination_nuit_pct	elimination_night_pct
+cases_ombre_permanente	cells_permanent_shadow
+%d fichiers écrits dans exports/ (%s_...)	%d files written to exports/ (%s_...)
+Latitude invalide : un nombre entre -90 et 90 (ex. -89,9 ou 89.9 S).	Invalid latitude: a number between -90 and 90 (e.g. -89.9 or 89.9 S).
+Longitude invalide : un nombre entre -180 et 360 (ex. 45 ou 120 O).	Invalid longitude: a number between -180 and 360 (e.g. 45 or 120 W).
+PRISE EN MAIN	GETTING STARTED
+1.  Onglet GLOBE : tournez la Lune (glisser), zoomez (molette), cliquez pour marquer un point,	1.  GLOBE tab: rotate the Moon (drag), zoom (wheel), click to mark a point,
+     puis « Enregistrer ce point », ou saisissez des coordonnées (Fichier > Nouveau point, Ctrl+N).	     then "Save this point", or enter coordinates (File > New point, Ctrl+N).
+     Filtres : luminosité à une date, topographie (altitude, écart à la moyenne, rugosité), points d'intérêt.	     Filters: illumination on a date, topography (elevation, deviation from the mean, roughness), points of interest.
+     Cliquez sur le nom d'un point pour le renommer.	     Click a point's name to rename it.
+2.  Bouton « Site » à côté d'un point : ouvre le relief détaillé autour de ce point.	2.  "Site" button next to a point: opens the detailed terrain around that point.
+     Si la zone n'est pas encore préparée, cliquez sur « Préparer cette zone » (quelques secondes).	     If the area is not prepared yet, click "Prepare this area" (a few seconds).
+3.  Onglet SITE : le Soleil et la Terre sont-ils visibles ? sur 30 jours, avec la pente du terrain.	3.  SITE tab: are the Sun and the Earth visible? Over 30 days, with the terrain slope.
+     Les boutons - et + (en haut à droite) agrandissent ou réduisent la zone étudiée.	     The - and + buttons (top right) enlarge or reduce the studied area.
+4.  Onglet SOL : la vue à 360° depuis le point choisi, avec le Soleil et la Terre dans le ciel.	4.  GROUND tab: the 360° view from the chosen point, with the Sun and the Earth in the sky.
+5.  Onglet ANALYSE : classe automatiquement des sites d'atterrissage autour d'un point.	5.  ANALYSIS tab: automatically ranks landing sites around a point.
+TERMES UTILES	USEFUL TERMS
+-  Nuit lunaire : environ 14,8 jours d'obscurité (350 h) en dehors des pôles.	-  Lunar night: about 14.8 days of darkness (350 h) away from the poles.
+-  Ombre permanente : zone où le Soleil ne se lève jamais, là où l'on peut trouver de la glace.	-  Permanent shadow: area where the Sun never rises, where ice may be found.
+-  Terre visible : permet une liaison radio directe. Au fond d'un cratère, elle est souvent cachée.	-  Earth visible: allows a direct radio link. At the bottom of a crater it is often hidden.
+Les données viennent du laser altimètre LOLA et de la caméra LROC (sonde NASA LRO).	The data come from the LOLA laser altimeter and the LROC camera (NASA's LRO probe).
+L'ONGLET ANALYSE	THE ANALYSIS TAB
+1.  Cliquez sur « Analyser l'année » (une seule fois par site : le résultat est enregistré).	1.  Click "Analyze the year" (once per site: the result is saved).
+2.  Cliquez sur le terrain pour choisir le centre de la zone de recherche, réglez le rayon.	2.  Click on the terrain to choose the center of the search area, set the radius.
+3.  Réglez la durée de la mission, sa date de début (ou « Meilleure date »), les priorités.	3.  Set the mission duration, its start date (or "Best date"), and the priorities.
+4.  Le tableau en haut à gauche de la vue 3D donne les 5 meilleurs sites avec leur note sur 100.	4.  The table at the top left of the 3D view lists the 5 best sites with their score out of 100.
+5.  Sur la carte : VERT = site valide (plus clair = meilleure note), ROUGE = éliminé, VIOLET = ombre.	5.  On the map: GREEN = valid site (lighter = better score), RED = eliminated, PURPLE = shadow.
+COMMENT LA NOTE EST CALCULÉE	HOW THE SCORE IS COMPUTED
+Filtres éliminatoires : pente, rugosité du terrain, Terre jamais visible, nuit trop longue.	Elimination filters: slope, terrain roughness, Earth never visible, night too long.
+Puis une moyenne pondérée de 5 critères : Énergie, Communication, Thermique*, Terrain, Science.	Then a weighted mean of 5 criteria: Energy, Communication, Thermal*, Terrain, Science.
+Les poids sont les curseurs « Priorités » ; les profils Survie, Glace et Relais les règlent d'un clic.	The weights are the "Priorities" sliders; the Survival, Ice and Relay profiles set them in one click.
+* Thermique : indicateur de cycles lumière/ombre, ce n'est pas une température.	* Thermal: light/shadow cycle indicator, not a temperature.
+EXPORT : menu Fichier > Exporter en CSV (4 fichiers dans le dossier exports).	EXPORT: File menu > Export as CSV (4 files in the exports folder).
+Limites : relief à 200 m par case (blocs et petits cratères invisibles), un seul mois ou un an modélisé.	Limits: terrain at 200 m per cell (boulders and small craters invisible), only one month or one year modeled.
+RACCOURCIS CLAVIER	KEYBOARD SHORTCUTS
+Ctrl + 1 / 2 / 3 / 4      Globe / Site / Sol / Analyse	Ctrl + 1 / 2 / 3 / 4      Globe / Site / Ground / Analysis
+Ctrl + E                  Exporter le classement en CSV	Ctrl + E                  Export the ranking as CSV
+Ctrl + N                  Nouveau point (saisie de coordonnées)	Ctrl + N                  New point (enter coordinates)
+Ctrl + ,                  Préférences (langue, unités)	Ctrl + ,                  Preferences (language, units)
+F1                        Guide d'utilisation	F1                        User guide
+F2                        Renommer le point actuel	F2                        Rename the current point
+F11                       Plein écran	F11                       Full screen
+Échap                     Fermer un menu ou une fenêtre, annuler une saisie	Esc                       Close a menu or window, cancel an entry
+SOURIS	MOUSE
+Glisser                   Tourner la caméra (Globe, Site, Analyse) ou regarder autour (Sol)	Drag                      Rotate the camera (Globe, Site, Analysis) or look around (Ground)
+Molette                   Zoom (Globe, Site, Analyse) ; défilement du panneau (Analyse)	Wheel                     Zoom (Globe, Site, Analysis); panel scrolling (Analysis)
+Clic                      Marquer un point (Globe), choisir un site (Site, Analyse)	Click                     Mark a point (Globe), choose a site (Site, Analysis)
+SELENE  -  planificateur de site d'atterrissage lunaire	SELENE  -  lunar landing site planner
+Projet réalisé pour le NASA Space Apps Challenge 2026.	Project built for the NASA Space Apps Challenge 2026.
+Données : NASA / LRO (altimètre LOLA, caméra LROC), domaine public.	Data: NASA / LRO (LOLA altimeter, LROC camera), public domain.
+Éphémérides : modèle analytique de Jean Meeus (Astronomical Algorithms), hors ligne.	Ephemerides: analytical model by Jean Meeus (Astronomical Algorithms), offline.
+Interface : raylib (licence zlib). Compression : sdefl / sinfl (domaine public).	Interface: raylib (zlib license). Compression: sdefl / sinfl (public domain).
+Les résultats sont des estimations pour la démonstration :	The results are estimates for demonstration purposes:
+ils ne remplacent pas une étude de mission.	they do not replace a mission study.
+Guide d'utilisation	User guide
+Raccourcis clavier	Keyboard shortcuts
+À propos de Selene	About Selene
+Vérification de l'installation	Installation check
+Supprimer tous les points ?	Delete all points?
+Nouveau point : saisie des coordonnées	New point: enter coordinates
+Globe lunaire (relief et couleurs)	Lunar globe (terrain and colors)
+Manquant : lancez tools/prepare_globe.py une fois (voir LISEZMOI.txt).	Missing: run tools/prepare_globe.py once (see LISEZMOI.txt).
+Outil de préparation des sites	Site preparation tool
+Python détecté : tools/prepare_data.py	Python detected: tools/prepare_data.py
+Manquant : placez tools/prepare_data.exe, ou installez Python + rasterio.	Missing: place tools/prepare_data.exe, or install Python + rasterio.
+Relief LOLA du pôle Sud (80 m par pixel)	LOLA terrain of the South Pole (80 m per pixel)
+Absent : placez LDEM_80S_80MPP_ADJ.tiff dans le dossier data/source.	Not found: place LDEM_80S_80MPP_ADJ.tiff in the data/source folder.
+Relief LOLA mondial (hors pôle Sud)	Global LOLA terrain (outside the South Pole)
+Absent : placez ldem_64 ou LDEM128 (.tif) dans le dossier data/source.	Not found: place ldem_64 or LDEM128 (.tif) in the data/source folder.
+%d site(s) déjà préparé(s) sur %d point(s) enregistré(s)	%d site(s) already prepared out of %d saved point(s)
+Les sites préparés s'ouvrent sans aucune installation supplémentaire.	Prepared sites open without any additional installation.
+Sans les fichiers de relief, vous pouvez quand même utiliser tous les sites déjà préparés.	Without the terrain files, you can still use all the sites already prepared.
+Ouvrir le dossier des données	Open the data folder
+Latitude  (de -90 à 90, ex. -89,9  ou  89.9 S)	Latitude  (-90 to 90, e.g. -89.9  or  89.9 S)
+Longitude  (Est positif, ex. 45  ou  120 O)	Longitude  (East positive, e.g. 45  or  120 W)
+Nom du point  (facultatif)	Point name  (optional)
+Entrée : enregistrer   |   Tab : champ suivant   |   Échap : annuler	Enter: save   |   Tab: next field   |   Esc: cancel
+%d point(s) enregistré(s) vont être retirés de la liste et du globe.	%d saved point(s) will be removed from the list and the globe.
+Les sites déjà préparés restent sur le disque (aucun fichier n'est effacé).	Prepared sites stay on disk (no file is deleted).
+Cette action est définitive.	This action is final.
+Précédent	Previous
+Suivant	Next
+Annuler	Cancel
+Tout supprimer	Delete all
+Marquer seulement	Mark only
+Enregistrer	Save
+Fermer	Close
+Planificateur de site lunaire	Lunar site planner
+Dossier « data » introuvable à côté de selene.exe : données fictives. Placez selene.exe dans le dossier du projet.	"data" folder not found next to selene.exe: using fictitious data. Place selene.exe in the project folder.
+Éclairement solaire	Solar illumination
+Visibilité de la Terre	Earth visibility
+Altitude	Elevation
+Pente	Slope
+Globe indisponible : voir Aide > Vérifier l'installation.	Globe unavailable: see Help > Check installation.
+Ouvrez l'onglet Analyse et lancez l'analyse avant d'exporter.	Open the Analysis tab and run the analysis before exporting.
+Sélectionnez d'abord un point enregistré (onglet Globe, bouton « Site »).	First select a saved point (Globe tab, "Site" button).
+Point supprimé.	Point deleted.
+Aucun point enregistré n'est sélectionné.	No saved point is selected.
+Réglages du classement réinitialisés.	Ranking settings reset.
+Choisissez d'abord un point enregistré (onglet Globe).	First choose a saved point (Globe tab).
+Ce site doit être re-préparé (Outils > Préparer / re-préparer).	This site must be re-prepared (Tools > Prepare / re-prepare).
+Analyse enregistrée supprimée pour ce site.	Saved analysis deleted for this site.
+Aucune analyse enregistrée pour ce site.	No saved analysis for this site.
+Export CSV : format Excel français (; et virgule).	CSV export: French Excel format (; and comma).
+Export CSV : format international (, et point).	CSV export: international format (, and period).
+Aucun point à supprimer.	No point to delete.
+Point « %s » enregistré (%.3f, %.3f).	Point "%s" saved (%.3f, %.3f).
+Maximum de points atteint : supprimez-en un d'abord.	Maximum number of points reached: delete one first.
+Point marqué : %.3f, %.3f.	Point marked: %.3f, %.3f.
+%d point(s) supprimé(s).	%d point(s) deleted.
+Préparation du site (quelques secondes)...	Preparing the site (a few seconds)...
+Chargement du site (calcul de l'éclairement)...	Loading the site (computing illumination)...
+Chargement de l'analyse enregistrée...	Loading the saved analysis...
+Analyse de l'année complète (quelques secondes)...	Analyzing the full year (a few seconds)...
+Soleil (%.1f°)	Sun (%.1f°)
+Soleil (masqué)	Sun (hidden)
+Terre (%.1f°)	Earth (%.1f°)
+Terre (masquée)	Earth (hidden)
+Vert : site valide (plus clair = meilleure note)  |  Rouge : éliminé par un filtre  |  Violet : ombre permanente	Green: valid site (lighter = better score)  |  Red: eliminated by a filter  |  Purple: permanent shadow
+Site non préparé	Site not prepared
+Zone : %s	Area: %s
+Zone : x%.1f	Area: x%.1f
+Glisser = tourner  |  molette = zoom  |  clic = marquer un point	Drag = rotate  |  wheel = zoom  |  click = mark a point
+Glisser = regarder autour (360°)  |  relief réel x1	Drag = look around (360°)  |  true relief x1
+Clic = centre de la zone de recherche  |  cercle jaune = rayon  |  chiffres = sites candidats	Click = center of the search area  |  yellow circle = radius  |  numbers = candidate sites
+Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site	Red: slope above the threshold  |  drag = rotate, wheel = zoom, click = choose a site
+Lune entière  |  rayon %s	Whole Moon  |  radius %s
+Carré de %s x %s (%s)	Square of %s x %s (%s)
+Cellule : %s  |  relief x%.1f	Cell: %s  |  relief x%.1f
+Sol	Ground
+Analyse	Analysis
+Globe indisponible.	Globe unavailable.
+Lancez tools/prepare_globe.py	Run tools/prepare_globe.py
+Exagération du relief	Relief exaggeration
+Filtres du globe	Globe filters
+Aucun	None
+Luminosité	Illumination
+Écart moyenne	Dev. vs mean
+Rugosité	Roughness
+Lecture	Play
+Phase de la Lune à cette date	Moon phase on this date
+nuit	night
+plein jour	full day
+Moyenne : %s   |   écart-type : %s	Mean: %s   |   std. dev.: %s
+Minimum : %s   |   maximum : %s	Minimum: %s   |   maximum: %s
+Altitude (échelle : moyenne ± 3 écarts-types)	Elevation (scale: mean ± 3 standard deviations)
+Écart à l'altitude moyenne, en écarts-types	Deviation from the mean elevation, in standard deviations
+-3 (bas)	-3 (low)
++3 (haut)	+3 (high)
+moyenne	mean
+Rugosité : écart-type local des altitudes	Roughness: local standard deviation of elevations
+lisse	smooth
+Points d'intérêt	Points of interest
+Zoomez pour voir les noms, cliquez pour marquer.	Zoom in to see names, click to mark.
+Point marqué : %s	Point marked: %s
+Point marqué	Point marked
+Altitude : %s	Elevation: %s
+Enregistrer ce point	Save this point
+Maximum de %d points atteint	Maximum of %d points reached
+Cliquez sur la Lune pour marquer un point.	Click on the Moon to mark a point.
+Saisir des coordonnées...	Enter coordinates...
+Points enregistrés	Saved points
+Tout effacer	Clear all
+Aucun pour l'instant.	None yet.
+(cliquez sur un nom pour le modifier)	(click a name to edit it)
+Zone initiale : %.1f, %.1f (gris)	Initial area: %.1f, %.1f (gray)
+Relief LOLA et couleurs LRO (NASA)	LOLA terrain and LRO colors (NASA)
+Zone x%.1f non préparée.	Area x%.1f not prepared.
+Préparer cette zone	Prepare this area
+Hors ligne : nécessite Python et un fichier LDEM.	Offline: needs Python and an LDEM file.
+DEM : LOLA polaire (80 m)	DEM: polar LOLA (80 m)
+DEM : mondial (ldem_64)	DEM: global (ldem_64)
+Zone initiale : taille non modifiable.	Initial area: size cannot be changed.
+Classement indisponible.	Ranking unavailable.
+Ce site a une ancienne préparation.	This site has an old preparation.
+Il faut les fichiers année + repères.	The year + frame files are required.
+Re-préparer ce site	Re-prepare this site
+Analyse annuelle requise (~ 5 s).	Annual analysis required (~ 5 s).
+Soleil et Terre vus de chaque case,	Sun and Earth as seen from each cell,
+sur une année entière, relief inclus.	over a full year, terrain included.
+Analyser l'année	Analyze the year
+Rayon de recherche	Search radius
+Durée de la mission	Mission duration
+Début de la mission	Mission start
+Survie	Survival
+Glace	Ice
+Relais	Relay
+Relais disponible : oui	Relay available: yes
+Relais disponible : non	Relay available: no
+Priorités	Priorities
+Contraintes	Constraints
+Énergie (Soleil)	Energy (Sun)
+Communication (Terre)	Communication (Earth)
+Stabilité thermique*	Thermal stability*
+Sécurité du terrain	Terrain safety
+Intérêt scientifique (glace)	Scientific interest (ice)
+ignoré	ignored
+Aucune ombre permanente dans cette zone.	No permanent shadow in this area.
+Pente maximale	Maximum slope
+Rugosité maximale	Maximum roughness
+Nuit continue maximale	Maximum continuous night
+Ellipse d'atterrissage	Landing ellipse
+Distance min. entre sites	Min. distance between sites
+Meilleure date pour cette zone	Best date for this area
+Aucune date valide avec ces contraintes (voir ci-dessous).	No valid date with these constraints (see below).
+Résultats	Results
+Cases valides à cette date : %.0f %%	Valid cells on this date: %.0f %%
+Aucun site valide à cette date.	No valid site on this date.
+(le tableau montre les meilleurs sites éliminés)	(the table shows the best eliminated sites)
+terrain trop rugueux	terrain too rough
+%s : %.0f %% des cases	%s: %.0f %% of cells
+Au-delà de 15 j, une nuit lunaire (~350 h)	Beyond 15 d, a lunar night (~350 h)
+est inévitable : réduisez la durée ou la limite.	is unavoidable: reduce the duration or the limit.
+Autoriser pente jusqu'à 25°	Allow slope up to 25°
+Autoriser rugosité jusqu'à %s	Allow roughness up to %s
+Activer le relais de communication	Enable the communication relay
+Autoriser nuit jusqu'à 400 h	Allow night up to 400 h
+Le classement et les notes sont dans le	The ranking and the scores are in the
+tableau en haut à gauche de la vue 3D.	table at the top left of the 3D view.
+Analyse relue depuis le disque (rapide).	Analysis reloaded from disk (fast).
+Analyse calculée puis enregistrée sur le disque.	Analysis computed and saved to disk.
+Exporter en CSV	Export as CSV
+Format : Excel FR (;)	Format: Excel FR (;)
+Format : international (,)	Format: international (,)
+Ouvrir dossier	Open folder
+Couche affichée	Displayed layer
+Orientation rapide	Quick orientation
+Viser Soleil	Aim at Sun
+Viser Terre	Aim at Earth
+Mode ingénieur : activé	Engineer mode: on
+Mode ingénieur : désactivé	Engineer mode: off
+Date : J+%.1f	Date: D+%.1f
+Pente maximale admise	Maximum allowed slope
+Exagération verticale	Vertical exaggeration
+Aucun site sélectionné.	No site selected.
+Cliquez sur le terrain.	Click on the terrain.
+Soleil visible : %.0f %%	Sun visible: %.0f %%
+Terre visible : %.0f %%	Earth visible: %.0f %%
+Plus longue nuit : %.1f j	Longest night: %.1f d
+Plus longue coupure radio : %.1f j	Longest radio blackout: %.1f d
+Cellule (x, y) : %d, %d	Cell (x, y): %d, %d
+Altitude : %s   Pente : %.1f°	Elevation: %s   Slope: %.1f°
+Soleil az/él : %.0f° / %.1f°	Sun az/el: %.0f° / %.1f°
+Terre az/él : %.0f° / %.1f°	Earth az/el: %.0f° / %.1f°
+Pente compatible avec un atterrissage	Slope compatible with a landing
+Pente de %.0f° : trop forte	Slope of %.0f°: too steep
+Données FICTIVES (terrain et/ou éphémérides)	FICTITIOUS data (terrain and/or ephemerides)
+Géométrie approx.	Approx. geometry
+Re-préparer	Re-prepare
+Soleil	Sun
+Terre	Earth
+Choisissez un site pour afficher ses fenêtres de lumière et de communication	Choose a site to display its light and communication windows
+Zone initiale	Initial area
+Année complète, site %d  |  fenêtre de mission en blanc  |  clic = choisir le début	Full year, site %d  |  mission window in white  |  click = choose the start
+Site %d enregistré : point %s (voir l'onglet Globe).	Site %d saved: point %s (see the Globe tab).
+Impossible : %d points enregistrés au maximum.	Not possible: %d saved points maximum.
+Fichier	File
+Nouveau point (coordonnées)...	New point (coordinates)...
+Exporter le classement en CSV	Export the ranking as CSV
+Ouvrir le dossier d'export	Open the export folder
+Quitter	Quit
+Édition	Edit
+Renommer le point actuel	Rename the current point
+Supprimer le point actuel	Delete the current point
+Supprimer tous les points...	Delete all points...
+Réinitialiser les réglages du classement	Reset the ranking settings
+Affichage	View
+Sol (vue à 360°)	Ground (360° view)
+Zone plus grande	Larger area
+Zone plus petite	Smaller area
+Plein écran	Full screen
+Outils	Tools
+Préparer / re-préparer le site actuel	Prepare / re-prepare the current site
+Analyser l'année (onglet Analyse)	Analyze the year (Analysis tab)
+Oublier l'analyse enregistrée du site	Forget the saved analysis of the site
+Format CSV : Excel FR (passer en international)	CSV format: Excel FR (switch to international)
+Format CSV : international (passer en Excel FR)	CSV format: international (switch to Excel FR)
+Vérifier l'installation...	Check installation...
+Aide	Help
+Préférences (langue, unités)...	Preferences (language, units)...
+Préférences	Preferences
+Langue de l'interface	Interface language
+Unités de mesure	Units of measurement
+Métrique (m, km)	Metric (m, km)
+Impérial (ft, mi)	Imperial (ft, mi)
+Les exports CSV restent toujours en unités métriques (m, km).	CSV exports always stay in metric units (m, km).
+Ajouter une langue : copiez lang/_modele.txt en lang/xx.txt, traduisez la colonne de droite,	Add a language: copy lang/_modele.txt to lang/xx.txt, translate the right-hand column,
+puis ajoutez en première ligne  #name=NomDeLaLangue.  Aucune installation n'est nécessaire.	then add  #name=LanguageName  as the first line.  No installation is needed.
+O	W
