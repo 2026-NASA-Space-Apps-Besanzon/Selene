@@ -1120,6 +1120,32 @@ static void recolor_ground(int t, int site_k) {
     UpdateMeshBuffer(mesh, 3, mesh.colors, NCELL * 4, 0);
 }
 
+/* Vue réelle : la Lune comme une caméra la verrait. Soleil à sa vraie position, ombres portées du relief (carte de visibilité du
+ * Soleil), régolithe gris avec un grain léger, très faible clair de Terre. Le Soleil rasant donne une scène naturellement sombre :
+ * le réglage d'exposition joue le rôle du diaphragme (courbe douce, sans saturation brutale). */
+static void recolor_real(int t, int ref_k, float expo) {
+    double sa = sun_az[t], se = sun_el[t];
+    if (have_frame) cell_azel(ref_k, sun_v[t], &sa, &se);
+    Vector3 sd = azel_to_dir3d(sa, se);
+    size_t off = (size_t)t * NCELL;
+    for (int k = 0; k < NCELL; k++) {
+        unsigned h = (unsigned)(k % GW) * 73856093u ^ (unsigned)(k / GW) * 19349663u;
+        h = (h ^ (h >> 13)) * 1274126177u;
+        float grain = 0.90f + 0.20f * (float)((h >> 8) & 0xFFFF) / 65535.0f;          /* +-10 % d'albédo d'une case à l'autre */
+        Vector3 n = {mesh.normals[3 * k], mesh.normals[3 * k + 1], mesh.normals[3 * k + 2]};
+        float diff = Vector3DotProduct(n, sd);
+        if (diff < 0.0f) diff = 0.0f;
+        float lit = illum[off + k] ? diff : 0.0f;                                     /* case à l'ombre du relief : pas de lumière directe */
+        float v = (1.0f - expf(-expo * lit)) * 0.95f * grain + 0.012f;                /* + lumière diffuse très faible */
+        float earth = earthv[off + k] ? 0.012f : 0.0f;                                /* clair de Terre */
+        mesh.colors[4 * k] = (unsigned char)(Clamp(v, 0.0f, 1.0f) * 255.0f);
+        mesh.colors[4 * k + 1] = (unsigned char)(Clamp(v * 0.98f + earth * 0.5f, 0.0f, 1.0f) * 255.0f);
+        mesh.colors[4 * k + 2] = (unsigned char)(Clamp(v * 0.94f + earth, 0.0f, 1.0f) * 255.0f);
+        mesh.colors[4 * k + 3] = 255;
+    }
+    UpdateMeshBuffer(mesh, 3, mesh.colors, NCELL * 4, 0);
+}
+
 /* ===================== Globe lunaire ===================== */
 #define GLON 256                 /* doit correspondre à tools/prepare_globe.py */
 #define GLAT 128
@@ -1390,6 +1416,7 @@ static int npts = 0, next_id = 1;
 static char status_msg[256] = "";
 
 static void save_points(void) {
+    if (npts == 0) next_id = 1;                      /* plus aucun point : la numérotation repart de P1 */
     FILE *f = fopen("data/points.txt", "w");
     if (!f) return;
     fprintf(f, "%d\n", next_id);
@@ -1450,7 +1477,13 @@ static int site_prepared(int idx, int z) {
     snprintf(p, sizeof p, "%s/dem.f32", dir);
     if (!FileExists(p)) return 0;
     snprintf(p, sizeof p, "%s/ephem.csv", dir);
-    return FileExists(p);
+    if (!FileExists(p)) return 0;
+    if (idx >= 0) {            /* le numéro P1 peut être réutilisé : on vérifie que le dossier correspond bien à CE point */
+        float la, lo;
+        snprintf(p, sizeof p, "%s/dem.txt", dir);
+        if (load_zone_center(p, &la, &lo) && (fabsf(la - pts[idx].lat) > 0.02f || fabsf(lo - pts[idx].lon) > 0.02f)) return 0;
+    }
+    return 1;
 }
 
 static void load_site_data(const char *dir) {
@@ -2399,6 +2432,7 @@ int main(void) {
     int poi_on[3] = {0, 0, 0};
 
     float exag = 1.0f, smax = 15.0f, time_f = 0.0f;
+    float rexp = 10.0f, prev_rexp = -1.0f;            /* vue réelle : exposition */
     int layer = 0, prev_t = -1, prev_layer = -1, prev_mode = -1;
     float prev_smax = -1, prev_exag = -1;
     bool eng = false, playing = false;
@@ -2414,7 +2448,7 @@ int main(void) {
     int rt_w = 0, rt_h = 0;
     Vector2 press = {0};
     bool press_in_view = false;
-    const char *layer_names[4] = {"Éclairement solaire", "Visibilité de la Terre", "Altitude", "Pente"};
+    const char *layer_names[5] = {"Éclairement solaire", "Visibilité de la Terre", "Altitude", "Pente", "Vue réelle"};
 
     while (!WindowShouldClose() && !quit_req) {
         SetMouseOffset(0, -TOP_H);                  /* le contenu est dessiné sous les barres */
@@ -2646,7 +2680,8 @@ int main(void) {
         int sw = GetScreenWidth(), sh_total = GetScreenHeight(), sh = sh_total - TOP_H;
         int gm = (mode == 0);
         int sm = (mode == 2);                    /* mode vue du sol */
-        float eff_exag = sm ? 1.0f : exag;       /* en vue du sol, relief réel (x1) indispensable pour un horizon exact */
+        int real_view = (mode == 1 && layer == 4);        /* onglet Site, couche « Vue réelle » */
+        float eff_exag = (sm || real_view) ? 1.0f : exag;       /* en vue du sol, relief réel (x1) indispensable pour un horizon exact */
         int panel_w = g_moon_fs ? 0 : PANEL_W;                 /* plein écran de la vue Lune : ni panneau ni frise */
         Rectangle view = {(float)panel_w, 0, (float)(sw - panel_w), (float)((gm || g_moon_fs) ? sh : sh - TL_H)};
         Rectangle tl = {PANEL_W, (float)(sh - TL_H), (float)(sw - PANEL_W), TL_H};
@@ -2767,10 +2802,12 @@ int main(void) {
 
         /* --- mises à jour du terrain si nécessaire --- */
         if (eff_exag != prev_exag) { update_geometry(eff_exag); prev_exag = eff_exag; prev_t = -1; }
-        int eff_layer = (mode == 3) ? 4 : layer;
-        if (t != prev_t || eff_layer != prev_layer || smax != prev_smax || force_recolor || mode != prev_mode) {
+        int eff_layer = (mode == 3) ? 4 : (layer == 4 ? 5 : layer);
+        if (t != prev_t || eff_layer != prev_layer || smax != prev_smax || force_recolor || mode != prev_mode || rexp != prev_rexp) {
             if (sm && site.valid) recolor_ground(t, site.y * GW + site.x);
+            else if (eff_layer == 5) recolor_real(t, site.valid ? site.y * GW + site.x : (GH / 2) * GW + GW / 2, rexp);
             else recolor(eff_layer, t, smax);
+            prev_rexp = rexp;
             prev_t = t; prev_layer = eff_layer; prev_smax = smax; prev_mode = mode; force_recolor = 0;
         }
         if (gm && have_globe) {
@@ -2794,7 +2831,7 @@ int main(void) {
 
         /* --- rendu 3D dans la texture --- */
         BeginTextureMode(rt);
-        ClearBackground(sm ? (Color){4, 6, 10, 255} : C_BG);
+        ClearBackground((sm || real_view) ? (Color){4, 6, 10, 255} : C_BG);
         BeginMode3D(cam);
         rlDisableBackfaceCulling();
         if (gm) {
@@ -3245,9 +3282,14 @@ int main(void) {
             } else {
                 if (!sm) {
                     DrawText("Couche affichée", 18, (int)y, 16, C_TXT); y += 22;
-                    for (int i = 0; i < 4; i++) {
+                    for (int i = 0; i < 5; i++) {
                         if (ui_button((Rectangle){18, y, 274, 22}, layer_names[i], layer == i)) layer = i;
                         y += 26;
+                    }
+                    if (layer == 4) {
+                        ui_slider(18, y + 4, 274, "Exposition", &rexp, 2.0f, 40.0f, TextFormat("x%.0f", rexp)); y += 44;
+                        DrawText("Soleil à sa position réelle, ombres portées", 18, (int)y, 12, C_MUT); y += 15;
+                        DrawText("du relief, relief réel x1 (sans exagération).", 18, (int)y, 12, C_MUT); y += 18;
                     }
                     y += 4;
                 } else {
@@ -3270,7 +3312,7 @@ int main(void) {
                 y += 26;
                 ui_slider(18, y, 274, "", &time_f, 0, N_STEPS - 1, ""); y += 42;
                 ui_slider(18, y, 274, "Pente maximale admise", &smax, 2, 30, TextFormat("%.0f°", smax)); y += 50;
-                if (!sm) {
+                if (!sm && layer != 4) {
                     ui_slider(18, y, 274, "Exagération verticale", &exag, 1, 6, TextFormat("x%.1f", exag)); y += 54;
                 }
 
