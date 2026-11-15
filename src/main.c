@@ -53,6 +53,9 @@ static float cell_m = 200.0f;   /* taille d'une cellule (m), lue dans data/input
 #define LUNAR_MONTH_H (29.53 * 24.0)
 #define EARTH_PERIOD_H (27.32 * 24.0)
 
+#define SELENE_VERSION "1.0"
+#define MENU_H 28                /* hauteur de la barre de menus */
+#define TOP_H MENU_H             /* hauteur totale au-dessus du contenu (barre de menus seule) */
 #define PANEL_W 310
 #define TL_H 210
 
@@ -1053,12 +1056,17 @@ static void load_site_data(const char *dir) {
     compute_visibility();
 }
 
-static void draw_message(const char *msg) {
-    BeginDrawing();
-    ClearBackground(C_BG);
-    int w = MeasureText(msg, 22);
-    DrawText(msg, (GetScreenWidth() - w) / 2, GetScreenHeight() / 2 - 11, 22, C_TXT);
-    EndDrawing();
+/* Message de chargement affiché PAR-DESSUS l'interface (le calcul a lieu à l'image suivante) */
+static char g_busy[100] = "";
+
+static void draw_busy(int sw, int sh_total) {
+    if (!g_busy[0]) return;
+    DrawRectangle(0, MENU_H, sw, sh_total - MENU_H, (Color){0, 0, 0, 110});
+    int tw = MeasureText(g_busy, 20) + 64;
+    Rectangle b = {(sw - tw) / 2.0f, sh_total / 2.0f - 34, (float)tw, 68};
+    DrawRectangleRec(b, C_PANEL);
+    DrawRectangleLinesEx(b, 1, C_SUN);
+    DrawText(g_busy, (int)b.x + 32, (int)b.y + 24, 20, C_TXT);
 }
 
 static void read_log_tail(void) {
@@ -1072,15 +1080,20 @@ static void read_log_tail(void) {
     snprintf(status_msg, sizeof status_msg, "%s", last);
 }
 
-/* Lance tools/prepare_data.py pour ce site et ce niveau de zone (DEM + éphémérides). Bloque quelques secondes. */
+/* Lance l'outil de préparation pour ce site et ce niveau de zone (DEM + éphémérides). Bloque quelques secondes.
+ * Priorité à tools/prepare_data.exe (autonome, sans Python) ; sinon tools/prepare_data.py via Python. */
 static void run_prepare(int idx, int z) {
-    char dir[300], cmd[1400];
+    char dir[300], args[400], cmd[1400];
     site_dir(idx, z, dir, sizeof dir);
     float lat = idx < 0 ? zone_lat : pts[idx].lat, lon = idx < 0 ? zone_lon : pts[idx].lon;
-    snprintf(cmd, sizeof cmd,
-             "python tools/prepare_data.py --lat %.4f --lon %.4f --out %s --zoom %.2f --start %s > data\\prepare_log.txt 2>&1"
-             " || py tools/prepare_data.py --lat %.4f --lon %.4f --out %s --zoom %.2f --start %s > data\\prepare_log.txt 2>&1",
-             lat, lon, dir, zfac[z], EPHEM_START, lat, lon, dir, zfac[z], EPHEM_START);
+    snprintf(args, sizeof args, "--lat %.4f --lon %.4f --out %s --zoom %.2f --start %s", lat, lon, dir, zfac[z], EPHEM_START);
+    int has_exe = FileExists("tools/prepare_data.exe"), has_py = FileExists("tools/prepare_data.py");
+    if (!has_exe && !has_py) {
+        snprintf(status_msg, sizeof status_msg, "Outil de préparation introuvable (voir Aide > Vérifier l'installation).");
+        return;
+    }
+    if (has_exe) snprintf(cmd, sizeof cmd, "tools\\prepare_data.exe %s > data\\prepare_log.txt 2>&1", args);
+    else snprintf(cmd, sizeof cmd, "python tools/prepare_data.py %s > data\\prepare_log.txt 2>&1 || py tools/prepare_data.py %s > data\\prepare_log.txt 2>&1", args, args);
     system(cmd);
     if (site_prepared(idx, z)) status_msg[0] = 0; else read_log_tail();
 }
@@ -1552,10 +1565,245 @@ static int export_csv(Rank *r, int cur_site, int zlev, char *msg, size_t msgn) {
     return files;
 }
 
+/* ===================== Barre de menus, boîtes de dialogue, notifications ===================== */
+enum { A_NONE = 0, A_NEWPT, A_EXPORT, A_OPEN_EXPORTS, A_OPEN_DATA, A_QUIT, A_RENAME, A_DELETE, A_RESET_RK,
+       A_TAB0, A_TAB1, A_TAB2, A_TAB3, A_ZOOMIN, A_ZOOMOUT, A_FULLSCREEN, A_PREPARE, A_ANALYZE, A_CLEAR_CACHE,
+       A_CSV_FMT, A_DIAG, A_HELP, A_SHORTCUTS, A_ABOUT, A_CLEAR_ALL };
+typedef struct { const char *label; const char *key; int act; int on; } MItem;
+typedef struct { const char *title; MItem it[12]; int n; } MMenu;
+
+static int g_menu_open = -1;           /* menu déroulé (-1 = aucun) */
+static int g_dialog = 0;               /* 0 aucune, 1 aide, 2 raccourcis, 3 à propos, 4 vérification */
+static int g_dialog_page = 0;
+static int g_clear_confirmed = 0;      /* mis à 1 par la boîte de confirmation « Tout supprimer » */
+static char g_toast[200] = "";
+static double g_toast_until = 0.0;
+
+static void toast(const char *msg) { snprintf(g_toast, sizeof g_toast, "%s", msg); g_toast_until = GetTime() + 4.5; }
+
+static void mi(MMenu *m, const char *label, const char *key, int act, int on) {
+    if (m->n < 12) m->it[m->n++] = (MItem){label, key, act, on};
+}
+
+/* Dessine la barre et renvoie l'action choisie (A_NONE sinon). Coordonnées d'écran réelles (pas de décalage). */
+static int menu_bar(int sw, MMenu *menus, int nm, int live) {
+    Vector2 m = GetMousePosition();
+    bool pressed = live && IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    if (!live) g_menu_open = -1;
+    int act = A_NONE, consumed = 0;
+    DrawRectangle(0, 0, sw, MENU_H, C_PANEL);
+    DrawRectangle(0, MENU_H - 1, sw, 1, C_LINE);
+    int tx[8] = {0}, tw[8] = {0}, x = 6;
+    for (int i = 0; i < nm; i++) {
+        tw[i] = MeasureText(menus[i].title, 16) + 22;
+        tx[i] = x;
+        Rectangle tr = {(float)x, 1, (float)tw[i], MENU_H - 2};
+        bool hot = live && CheckCollisionPointRec(m, tr);
+        if (g_menu_open == i || hot) DrawRectangleRec(tr, g_menu_open == i ? C_HOT : C_BTN);
+        DrawText(menus[i].title, x + 11, 6, 16, C_TXT);
+        if (hot && pressed) { g_menu_open = (g_menu_open == i) ? -1 : i; consumed = 1; }
+        else if (hot && g_menu_open >= 0 && g_menu_open != i) g_menu_open = i;      /* survol : on change de menu */
+        x += tw[i];
+    }
+    if (g_menu_open >= 0) {
+        MMenu *mm = &menus[g_menu_open];
+        int w = 220;
+        for (int i = 0; i < mm->n; i++) {
+            int need = MeasureText(mm->it[i].label, 16) + (mm->it[i].key ? MeasureText(mm->it[i].key, 14) + 40 : 24);
+            if (need > w) w = need;
+        }
+        int h = 8;
+        for (int i = 0; i < mm->n; i++) h += (mm->it[i].label[0] == '-' && mm->it[i].label[1] == 0) ? 9 : 26;
+        Rectangle box = {(float)tx[g_menu_open], (float)MENU_H, (float)w, (float)h};
+        DrawRectangleRec((Rectangle){box.x + 3, box.y + 3, box.width, box.height}, (Color){0, 0, 0, 90});
+        DrawRectangleRec(box, C_PANEL);
+        DrawRectangleLinesEx(box, 1, C_LINE);
+        float yy = box.y + 4;
+        for (int i = 0; i < mm->n; i++) {
+            const MItem *it = &mm->it[i];
+            if (it->label[0] == '-' && it->label[1] == 0) { DrawRectangle((int)box.x + 8, (int)yy + 4, w - 16, 1, C_LINE); yy += 9; continue; }
+            Rectangle r = {box.x + 2, yy, (float)w - 4, 24};
+            bool hot = CheckCollisionPointRec(m, r);
+            if (hot && it->on) DrawRectangleRec(r, C_HOT);
+            DrawText(it->label, (int)r.x + 10, (int)yy + 4, 16, it->on ? C_TXT : C_MUT);
+            if (it->key) DrawText(it->key, (int)(r.x + r.width - MeasureText(it->key, 14) - 10), (int)yy + 6, 14, C_MUT);
+            if (hot && pressed && it->on) { act = it->act; g_menu_open = -1; consumed = 1; }
+            else if (hot && pressed) consumed = 1;
+            yy += 26;
+        }
+        if (pressed && !consumed && !CheckCollisionPointRec(m, box)) g_menu_open = -1;     /* clic ailleurs : on referme */
+        if (IsKeyPressed(KEY_ESCAPE)) g_menu_open = -1;
+    }
+    return act;
+}
+
+/* ----- textes d'aide ----- */
+static const char *HELP_P1[] = {
+    "PRISE EN MAIN",
+    "",
+    "1.  Onglet GLOBE : tournez la Lune (glisser), zoomez (molette), cliquez pour marquer un point,",
+    "     puis « Enregistrer ce point ». Cliquez sur le nom d'un point pour le renommer.",
+    "2.  Bouton « Site » à côté d'un point : ouvre le relief détaillé autour de ce point.",
+    "     Si la zone n'est pas encore préparée, cliquez sur « Préparer cette zone » (quelques secondes).",
+    "3.  Onglet SITE : le Soleil et la Terre sont-ils visibles ? sur 30 jours, avec la pente du terrain.",
+    "     Les boutons - et + (en haut à droite) agrandissent ou réduisent la zone étudiée.",
+    "4.  Onglet SOL : la vue à 360° depuis le point choisi, avec le Soleil et la Terre dans le ciel.",
+    "5.  Onglet ANALYSE : classe automatiquement des sites d'atterrissage autour d'un point.",
+    "",
+    "TERMES UTILES",
+    "",
+    "-  Nuit lunaire : environ 14,8 jours d'obscurité (350 h) en dehors des pôles.",
+    "-  Ombre permanente : zone où le Soleil ne se lève jamais, là où l'on peut trouver de la glace.",
+    "-  Terre visible : permet une liaison radio directe. Au fond d'un cratère, elle est souvent cachée.",
+    "",
+    "Les données viennent du laser altimètre LOLA et de la caméra LROC (sonde NASA LRO).",
+};
+static const char *HELP_P2[] = {
+    "L'ONGLET ANALYSE",
+    "",
+    "1.  Cliquez sur « Analyser l'année » (une seule fois par site : le résultat est enregistré).",
+    "2.  Cliquez sur le terrain pour choisir le centre de la zone de recherche, réglez le rayon.",
+    "3.  Réglez la durée de la mission, sa date de début (ou « Meilleure date »), les priorités.",
+    "4.  Le tableau en haut à gauche de la vue 3D donne les 5 meilleurs sites avec leur note sur 100.",
+    "5.  Sur la carte : VERT = site valide (plus clair = meilleure note), ROUGE = éliminé, VIOLET = ombre.",
+    "",
+    "COMMENT LA NOTE EST CALCULÉE",
+    "",
+    "Filtres éliminatoires : pente, rugosité du terrain, Terre jamais visible, nuit trop longue.",
+    "Puis une moyenne pondérée de 5 critères : Énergie, Communication, Thermique*, Terrain, Science.",
+    "Les poids sont les curseurs « Priorités » ; les profils Survie, Glace et Relais les règlent d'un clic.",
+    "* Thermique : indicateur de cycles lumière/ombre, ce n'est pas une température.",
+    "",
+    "EXPORT : menu Fichier > Exporter en CSV (4 fichiers dans le dossier exports).",
+    "Limites : relief à 200 m par case (blocs et petits cratères invisibles), un seul mois ou un an modélisé.",
+};
+static const char *KEYS[] = {
+    "RACCOURCIS CLAVIER",
+    "",
+    "Ctrl + 1 / 2 / 3 / 4      Globe / Site / Sol / Analyse",
+    "Ctrl + E                  Exporter le classement en CSV",
+    "F1                        Guide d'utilisation",
+    "F2                        Renommer le point actuel",
+    "F11                       Plein écran",
+    "Échap                     Fermer un menu ou une fenêtre, annuler une saisie",
+    "",
+    "SOURIS",
+    "",
+    "Glisser                   Tourner la caméra (Globe, Site, Analyse) ou regarder autour (Sol)",
+    "Molette                   Zoom (Globe, Site, Analyse) ; défilement du panneau (Analyse)",
+    "Clic                      Marquer un point (Globe), choisir un site (Site, Analyse)",
+};
+static const char *ABOUT[] = {
+    "SELENE  -  planificateur de site d'atterrissage lunaire",
+    "Version " SELENE_VERSION,
+    "",
+    "Projet réalisé pour le NASA Space Apps Challenge 2026.",
+    "",
+    "Données : NASA / LRO (altimètre LOLA, caméra LROC), domaine public.",
+    "Éphémérides : modèle analytique de Jean Meeus (Astronomical Algorithms), hors ligne.",
+    "Interface : raylib (licence zlib). Compression : sdefl / sinfl (domaine public).",
+    "",
+    "Les résultats sont des estimations pour la démonstration :",
+    "ils ne remplacent pas une étude de mission.",
+};
+
+/* ----- vérification de l'installation ----- */
+static struct { int globe, tool_exe, tool_py, python_ok, nsites; char polar[80], global[80]; } g_diag;
+
+static void diag_scan(void) {
+    memset(&g_diag, 0, sizeof g_diag);
+    g_diag.globe = FileExists("data/globe/dem_globe.f32") && FileExists("data/globe/moon_color.png");
+    g_diag.tool_exe = FileExists("tools/prepare_data.exe");
+    g_diag.tool_py = FileExists("tools/prepare_data.py");
+    if (!g_diag.tool_exe && g_diag.tool_py)
+        g_diag.python_ok = system("python --version > nul 2>&1") == 0 || system("py --version > nul 2>&1") == 0;
+    const char *dirs[3] = {".", "data", "data/source"};
+    for (int d = 0; d < 3; d++) {
+        if (!DirectoryExists(dirs[d])) continue;
+        FilePathList fl = LoadDirectoryFilesEx(dirs[d], ".tif;.tiff", false);
+        for (unsigned int i = 0; i < fl.count; i++) {
+            const char *nm = GetFileName(fl.paths[i]);
+            char low[96];
+            size_t j = 0;
+            for (; nm[j] && j < sizeof low - 1; j++) low[j] = (char)((nm[j] >= 'A' && nm[j] <= 'Z') ? nm[j] + 32 : nm[j]);
+            low[j] = 0;
+            if (strncmp(low, "ldem", 4) != 0) continue;
+            if (strstr(low, "80s") != NULL) { if (!g_diag.polar[0]) snprintf(g_diag.polar, sizeof g_diag.polar, "%s", nm); }
+            else if (strstr(low, "_err") == NULL && strstr(low, "effres") == NULL) { if (!g_diag.global[0]) snprintf(g_diag.global, sizeof g_diag.global, "%s", nm); }
+        }
+        UnloadDirectoryFiles(fl);
+    }
+    for (int i = 0; i < npts; i++) g_diag.nsites += site_prepared(i, 1);
+}
+
+static void diag_line(int x, int *y, int ok, const char *label, const char *detail) {
+    DrawCircle(x + 8, *y + 9, 6, ok ? C_OK : C_BAD);
+    DrawText(label, x + 24, *y, 16, C_TXT);
+    if (detail && detail[0]) DrawText(detail, x + 24, *y + 20, 13, C_MUT);
+    *y += detail && detail[0] ? 46 : 28;
+}
+
+/* Boîte de dialogue centrée. Renvoie 1 quand elle vient d'être fermée. */
+static int draw_dialog(int sw, int sh_total) {
+    bool saved = g_block;
+    g_block = false;
+    int closed = 0;
+    int bw = sw - 120 < 940 ? sw - 120 : 940, bh = sh_total - 120 < 640 ? sh_total - 120 : 640;
+    if (g_dialog == 5) { bw = 560; bh = 250; }
+    Rectangle box = {(float)(sw - bw) / 2, (float)MENU_H + (float)(sh_total - MENU_H - bh) / 2, (float)bw, (float)bh};
+    DrawRectangle(0, MENU_H, sw, sh_total - MENU_H, (Color){0, 0, 0, 150});
+    DrawRectangleRec(box, C_PANEL);
+    DrawRectangleLinesEx(box, 1, C_LINE);
+    const char *const *lines = NULL;
+    int n = 0;
+    const char *title = "";
+    if (g_dialog == 1) { title = "Guide d'utilisation"; lines = g_dialog_page ? HELP_P2 : HELP_P1; n = g_dialog_page ? (int)(sizeof HELP_P2 / sizeof *HELP_P2) : (int)(sizeof HELP_P1 / sizeof *HELP_P1); }
+    else if (g_dialog == 2) { title = "Raccourcis clavier"; lines = KEYS; n = (int)(sizeof KEYS / sizeof *KEYS); }
+    else if (g_dialog == 3) { title = "À propos de Selene"; lines = ABOUT; n = (int)(sizeof ABOUT / sizeof *ABOUT); }
+    else if (g_dialog == 4) title = "Vérification de l'installation";
+    else if (g_dialog == 5) title = "Supprimer tous les points ?";
+    DrawText(title, (int)box.x + 24, (int)box.y + 18, 22, C_SUN);
+    int x = (int)box.x + 28, y = (int)box.y + 64;
+    if (g_dialog == 4) {
+        diag_line(x, &y, g_diag.globe, "Globe lunaire (relief et couleurs)", g_diag.globe ? "" : "Manquant : lancez tools/prepare_globe.py une fois (voir LISEZMOI.txt).");
+        int tool = g_diag.tool_exe || g_diag.python_ok;
+        diag_line(x, &y, tool, "Outil de préparation des sites",
+                  g_diag.tool_exe ? "tools/prepare_data.exe (autonome)" : (g_diag.python_ok ? "Python détecté : tools/prepare_data.py" : "Manquant : placez tools/prepare_data.exe, ou installez Python + rasterio."));
+        diag_line(x, &y, g_diag.polar[0] != 0, "Relief LOLA du pôle Sud (80 m par pixel)", g_diag.polar[0] ? g_diag.polar : "Absent : placez LDEM_80S_80MPP_ADJ.tiff dans le dossier data/source.");
+        diag_line(x, &y, g_diag.global[0] != 0, "Relief LOLA mondial (hors pôle Sud)", g_diag.global[0] ? g_diag.global : "Absent : placez ldem_64 ou LDEM128 (.tif) dans le dossier data/source.");
+        char b[96];
+        snprintf(b, sizeof b, "%d site(s) déjà préparé(s) sur %d point(s) enregistré(s)", g_diag.nsites, npts);
+        diag_line(x, &y, g_diag.nsites > 0, b, g_diag.nsites ? "" : "Les sites préparés s'ouvrent sans aucune installation supplémentaire.");
+        DrawText("Sans les fichiers de relief, vous pouvez quand même utiliser tous les sites déjà préparés.", x, y + 6, 14, C_MUT);
+        if (ui_button((Rectangle){(float)x, box.y + box.height - 112, 230, 30}, "Ouvrir le dossier des données", false)) { MKDIR("data"); MKDIR("data/source"); system("start \"\" data"); }
+    } else if (g_dialog == 5) {
+        DrawText(TextFormat("%d point(s) enregistré(s) vont être retirés de la liste et du globe.", npts), x, y, 16, C_TXT);
+        DrawText("Les sites déjà préparés restent sur le disque (aucun fichier n'est effacé).", x, y + 30, 14, C_MUT);
+        DrawText("Cette action est définitive.", x, y + 60, 14, C_BAD);
+    } else {
+        for (int i = 0; i < n; i++) {
+            bool head = lines[i][0] && lines[i][0] >= 'A' && lines[i][0] <= 'Z' && lines[i][1] >= 'A' && lines[i][1] <= 'Z';
+            DrawText(lines[i], x, y, head ? 17 : 15, head ? C_SUN : (g_dialog == 3 && i == 0 ? C_TXT : C_TXT));
+            y += lines[i][0] ? 22 : 12;
+        }
+    }
+    if (g_dialog == 1) {
+        DrawText(TextFormat("Page %d / 2", g_dialog_page + 1), (int)box.x + 28, (int)(box.y + box.height - 34), 14, C_MUT);
+        if (ui_button((Rectangle){box.x + box.width - 380, box.y + box.height - 46, 110, 30}, g_dialog_page ? "Précédent" : "Suivant", false)) g_dialog_page = !g_dialog_page;
+    }
+    if (g_dialog == 5) {
+        if (ui_button((Rectangle){box.x + box.width - 300, box.y + box.height - 46, 130, 30}, "Annuler", false) || IsKeyPressed(KEY_ESCAPE)) closed = 1;
+        if (ui_button((Rectangle){box.x + box.width - 160, box.y + box.height - 46, 130, 30}, "Tout supprimer", true)) { g_clear_confirmed = 1; closed = 1; }
+    } else if (ui_button((Rectangle){box.x + box.width - 140, box.y + box.height - 46, 110, 30}, "Fermer", true) || IsKeyPressed(KEY_ESCAPE)) closed = 1;
+    g_block = saved;
+    return closed;
+}
+
 /* ===================== Programme principal ===================== */
 typedef struct { bool valid; int x, y; } Site;
 
 int main(void) {
+    ChangeDirectory(GetApplicationDirectory());     /* les données sont cherchées à côté de l'exécutable, quel que soit le mode de lancement */
     /* --- données initiales : zone préparée dans data/input (ou fictive) --- */
     load_points();
     load_site_data("data/input");
@@ -1563,7 +1811,7 @@ int main(void) {
 
     /* --- fenêtre --- */
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
-    InitWindow(1440, 860, "Selene - Planificateur de site lunaire");
+    InitWindow(1440, 860 + TOP_H, "Selene " SELENE_VERSION " - Planificateur de site lunaire");
     /* --- Icône de la fenêtre --- */
     if (FileExists("data/logo.png")) {
         Image icon = LoadImage("data/logo.png");
@@ -1575,9 +1823,13 @@ int main(void) {
         logo_tex = LoadTexture("data/logo.png");
         SetTextureFilter(logo_tex, TEXTURE_FILTER_BILINEAR);
     }
-    SetWindowMinSize(900, 700);
+    SetWindowMinSize(900, 700 + TOP_H);
     SetTargetFPS(60);
     SetExitKey(KEY_NULL);                        /* Échap sert à annuler une saisie, il ne ferme plus la fenêtre */
+    if (!DirectoryExists("data")) {
+        toast("Dossier « data » introuvable à côté de selene.exe : données fictives. Placez selene.exe dans le dossier du projet.");
+        g_toast_until = GetTime() + 12.0;
+    }
 
     build_mesh();
     UploadMesh(&mesh, true);
@@ -1587,7 +1839,7 @@ int main(void) {
     Material gmat = LoadMaterialDefault();
     if (have_globe) SetMaterialTexture(&gmat, MATERIAL_MAP_DIFFUSE, g_tex);
 
-    int mode = have_globe ? 0 : 1;               /* 0 = globe, 1 = site, 2 = sol, 3 = classer */
+    int mode = have_globe ? 0 : 1;               /* 0 = globe, 1 = site, 2 = sol, 3 = analyse */
     int cur_site = -1;                           /* -1 = zone initiale, sinon indice dans pts[] */
     int site_ready = 1;
     int edit_idx = -1;                           /* point en cours de renommage (-1 = aucun) */
@@ -1598,13 +1850,14 @@ int main(void) {
     Rank rk = {.w = {6, 6, 4, 6, 3}, .rad_km = 6.4f, .days = 7.0f, .smax = 10.0f, .sigma = 20.0f, .night = 120.0f,
                .ell = 300.0f, .excl_km = 1.0f, .sel = -1, .save_req = -1};
     int pending_year = 0, force_recolor = 0, rk_force = 1, cache_tried = 0;
+    int quit_req = 0, menu_act_prev = A_NONE, busy_armed = 0;
     float panel_scroll = 0.0f, panel_max = 0.0f;
     const void *prev_active = NULL;
-    float gyaw = 0.0f, gpitch = 0.3f, gdist = 260.0f, gexag = 15.0f, prev_gexag = -1.0f;
+    float gyaw = 0.0f, gpitch = 0.3f, gdist = 260.0f, gexag = 1.0f, prev_gexag = -1.0f;
     int gpick_valid = 0;
     float gpick_lat = 0, gpick_lon = 0;
 
-    float exag = 2.0f, smax = 15.0f, time_f = 0.0f;
+    float exag = 1.0f, smax = 15.0f, time_f = 0.0f;
     int layer = 0, prev_t = -1, prev_layer = -1, prev_mode = -1;
     float prev_smax = -1, prev_exag = -1;
     bool eng = false, playing = false;
@@ -1622,32 +1875,106 @@ int main(void) {
     bool press_in_view = false;
     const char *layer_names[4] = {"Éclairement solaire", "Visibilité de la Terre", "Altitude", "Pente"};
 
-    while (!WindowShouldClose()) {
-        /* --- tâches lourdes demandées à l'image précédente --- */
-        if (pending_prepare != -2) {
-            int idx = pending_prepare; pending_prepare = -2;
-            draw_message("Préparation du site (quelques secondes)...");
-            run_prepare(idx, zlev);
-            if (site_prepared(idx, zlev)) pending_load = idx;
+    while (!WindowShouldClose() && !quit_req) {
+        SetMouseOffset(0, -TOP_H);                  /* le contenu est dessiné sous les barres */
+
+        /* --- actions des menus et raccourcis clavier --- */
+        int act = menu_act_prev;
+        menu_act_prev = A_NONE;
+        if (edit_idx < 0 && g_dialog == 0) {
+            bool ctrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+            if (ctrl && IsKeyPressed(KEY_ONE)) act = A_TAB0;
+            if (ctrl && IsKeyPressed(KEY_TWO)) act = A_TAB1;
+            if (ctrl && IsKeyPressed(KEY_THREE)) act = A_TAB2;
+            if (ctrl && IsKeyPressed(KEY_FOUR)) act = A_TAB3;
+            if (ctrl && IsKeyPressed(KEY_E)) act = A_EXPORT;
+            if (IsKeyPressed(KEY_F1)) act = A_HELP;
+            if (IsKeyPressed(KEY_F2)) act = A_RENAME;
+            if (IsKeyPressed(KEY_F11)) act = A_FULLSCREEN;
         }
-        if (pending_load != -2) {
-            int idx = pending_load; pending_load = -2;
-            cur_site = idx;
-            if (!(idx < 0 && zlev == 1) && !site_prepared(idx, zlev)) {
-                site_ready = 0;
-            } else {
-                draw_message("Calcul de l'éclairement et des communications...");
-                char dir[300];
-                site_dir(idx, zlev, dir, sizeof dir);
-                load_site_data(dir);
-                site_ready = 1;
-                site.valid = true; site.x = GW / 2; site.y = GH / 2;
-                prev_exag = -1.0f; prev_t = -1;
-                rk.n = 0; rk.sel = -1; rk.start_day = 0.0f; rk.rad_km = 0.25f * GW * cell_m / 1000.0f;
-                rk_force = 1; panel_scroll = 0.0f; rk.note[0] = 0; rk.exp_msg[0] = 0; rk.from_cache = 0; cache_tried = 0;
-            }
+        switch (act) {
+            case A_NEWPT:
+                if (have_globe) { mode = 0; toast("Cliquez sur la Lune pour marquer un point, puis « Enregistrer ce point »."); }
+                else toast("Globe indisponible : voir Aide > Vérifier l'installation.");
+                break;
+            case A_EXPORT:
+                if (mode == 3 && site_ready && year_ready) { export_csv(&rk, cur_site, zlev, rk.exp_msg, sizeof rk.exp_msg); toast(rk.exp_msg); }
+                else toast("Ouvrez l'onglet Analyse et lancez l'analyse avant d'exporter.");
+                break;
+            case A_OPEN_EXPORTS: MKDIR("exports"); system("start \"\" exports"); break;
+            case A_OPEN_DATA: MKDIR("data"); system("start \"\" data"); break;
+            case A_QUIT: quit_req = 1; break;
+            case A_RENAME:
+                if (cur_site >= 0 && have_globe) { mode = 0; edit_idx = cur_site; snprintf(edit_buf, sizeof edit_buf, "%s", pts[cur_site].name); }
+                else toast("Sélectionnez d'abord un point enregistré (onglet Globe, bouton « Site »).");
+                break;
+            case A_DELETE:
+                if (cur_site >= 0) {
+                    for (int i = cur_site; i < npts - 1; i++) pts[i] = pts[i + 1];
+                    npts--;
+                    save_points();
+                    cur_site = -1; pending_load = -1; zlev = 1; edit_idx = -1;
+                    toast("Point supprimé.");
+                } else toast("Aucun point enregistré n'est sélectionné.");
+                break;
+            case A_RESET_RK: {
+                float dw[5] = {6, 6, 4, 6, 3};
+                memcpy(rk.w, dw, sizeof dw);
+                rk.days = 7.0f; rk.smax = 10.0f; rk.sigma = 20.0f; rk.night = 120.0f; rk.ell = 300.0f; rk.excl_km = 1.0f; rk.relay = 0;
+                rk.rad_km = 0.25f * GW * cell_m / 1000.0f;
+                rk_force = 1;
+                toast("Réglages du classement réinitialisés.");
+                break; }
+            case A_TAB0: if (have_globe) mode = 0; break;
+            case A_TAB1: mode = 1; break;
+            case A_TAB2: mode = 2; if (!site.valid) { site.valid = true; site.x = GW / 2; site.y = GH / 2; } break;
+            case A_TAB3: mode = 3; break;
+            case A_ZOOMIN: if (zlev < 4 && (cur_site >= 0 || zone_valid)) { zlev++; pending_load = cur_site; } break;
+            case A_ZOOMOUT: if (zlev > 0 && (cur_site >= 0 || zone_valid)) { zlev--; pending_load = cur_site; } break;
+            case A_FULLSCREEN: ToggleBorderlessWindowed(); break;
+            case A_PREPARE:
+                if (cur_site >= 0 || zone_valid) pending_prepare = cur_site;
+                else toast("Choisissez d'abord un point enregistré (onglet Globe).");
+                break;
+            case A_ANALYZE:
+                mode = 3;
+                if (have_frame && year_loaded && !year_ready) pending_year = 1;
+                else if (!have_frame || !year_loaded) toast("Ce site doit être re-préparé (Outils > Préparer / re-préparer).");
+                break;
+            case A_CLEAR_CACHE: {
+                char dc[300], pc[340];
+                site_dir(cur_site, zlev, dc, sizeof dc);
+                snprintf(pc, sizeof pc, "%s/analysis.bin", dc);
+                if (FileExists(pc)) { remove(pc); toast("Analyse enregistrée supprimée pour ce site."); }
+                else toast("Aucune analyse enregistrée pour ce site.");
+                break; }
+            case A_CSV_FMT:
+                g_csv_fr = !g_csv_fr;
+                toast(g_csv_fr ? "Export CSV : format Excel français (; et virgule)." : "Export CSV : format international (, et point).");
+                break;
+            case A_DIAG: diag_scan(); g_dialog = 4; break;
+            case A_HELP: g_dialog = 1; g_dialog_page = 0; break;
+            case A_SHORTCUTS: g_dialog = 2; break;
+            case A_ABOUT: g_dialog = 3; break;
+            case A_CLEAR_ALL:
+                if (npts > 0) g_dialog = 5;
+                else toast("Aucun point à supprimer.");
+                break;
+            default: break;
         }
-        /* à l'ouverture de l'onglet Classer, une analyse déjà enregistrée sur le disque est rechargée automatiquement */
+
+        if (g_clear_confirmed) {                    /* confirmation reçue : on efface tous les points */
+            g_clear_confirmed = 0;
+            int n_del = npts;
+            npts = 0;
+            save_points();
+            edit_idx = -1;
+            if (cur_site >= 0) { cur_site = -1; pending_load = -1; zlev = 1; }     /* rechargement seulement si le site affiché venait d'un point supprimé */
+            toast(TextFormat("%d point(s) supprimé(s).", n_del));
+        }
+
+        /* --- tâches lourdes : le message s'affiche d'abord par-dessus l'écran, le calcul a lieu à l'image suivante --- */
+        /* à l'ouverture de l'onglet Analyse, une analyse déjà enregistrée sur le disque est rechargée automatiquement */
         if (mode == 3 && site_ready && have_frame && year_loaded && !year_ready && !cache_tried) {
             cache_tried = 1;
             char dc[300], pc[340];
@@ -1655,31 +1982,69 @@ int main(void) {
             snprintf(pc, sizeof pc, "%s/analysis.bin", dc);
             if (FileExists(pc)) pending_year = 1;
         }
-        if (pending_year) {
-            pending_year = 0;
-            char dy[300], pcache[340];
-            site_dir(cur_site, zlev, dy, sizeof dy);
-            snprintf(pcache, sizeof pcache, "%s/analysis.bin", dy);
-            rk.from_cache = 0;
-            if (FileExists(pcache)) {
-                draw_message("Chargement de l'analyse enregistrée...");
-                rk.from_cache = load_analysis(dy);
-            }
-            if (!rk.from_cache) {
-                draw_message("Analyse de l'année complète (quelques secondes)...");
-                compute_horizon();
-                compute_year();
-                draw_message("Enregistrement des résultats pour la prochaine fois...");
-                save_analysis(dy);
-            }
-            rk.cx = site.valid ? site.x : GW / 2; rk.cy = site.valid ? site.y : GH / 2;
-            ensure_terrain(rk.ell);
-            Params P0 = rk_params(&rk);
-            int bd0 = best_start_region(&P0, rk.cx, rk.cy, rk.rad_km * 1000.0);                 /* on démarre à la meilleure date */
-            rk.start_day = bd0 >= 0 ? bd0 / 4.0f : 0.0f;
-            rk_force = 1; force_recolor = 1;
+        int run_tasks = 1;
+        {
+            int heavy_load = pending_load != -2 && ((pending_load < 0 && zlev == 1) || site_prepared(pending_load, zlev));
+            if ((pending_prepare != -2 || heavy_load || pending_year) && !busy_armed) {
+                const char *bm;
+                if (pending_prepare != -2) bm = "Préparation du site (quelques secondes)...";
+                else if (heavy_load) bm = "Chargement du site (calcul de l'éclairement)...";
+                else {
+                    char dy2[300], pc2[340];
+                    site_dir(cur_site, zlev, dy2, sizeof dy2);
+                    snprintf(pc2, sizeof pc2, "%s/analysis.bin", dy2);
+                    bm = FileExists(pc2) ? "Chargement de l'analyse enregistrée..." : "Analyse de l'année complète (quelques secondes)...";
+                }
+                snprintf(g_busy, sizeof g_busy, "%s", bm);
+                busy_armed = 1;
+                run_tasks = 0;
+            } else if (busy_armed) { busy_armed = 0; g_busy[0] = 0; }
         }
-        g_block = g_dd_open;
+        if (run_tasks) {
+            if (pending_prepare != -2) {
+                int idx = pending_prepare; pending_prepare = -2;
+                run_prepare(idx, zlev);
+                if (site_prepared(idx, zlev)) pending_load = idx;
+            }
+            if (pending_load != -2) {
+                int idx = pending_load; pending_load = -2;
+                cur_site = idx;
+                if (!(idx < 0 && zlev == 1) && !site_prepared(idx, zlev)) {
+                    site_ready = 0;
+                } else {
+                    char dir[300];
+                    site_dir(idx, zlev, dir, sizeof dir);
+                    load_site_data(dir);
+                    site_ready = 1;
+                    site.valid = true; site.x = GW / 2; site.y = GH / 2;
+                    prev_exag = -1.0f; prev_t = -1;
+                    rk.n = 0; rk.sel = -1; rk.start_day = 0.0f; rk.rad_km = 0.25f * GW * cell_m / 1000.0f;
+                    rk_force = 1; panel_scroll = 0.0f; rk.note[0] = 0; rk.exp_msg[0] = 0; rk.from_cache = 0; cache_tried = 0;
+                }
+            }
+            if (pending_year) {
+                pending_year = 0;
+                char dy[300], pcache[340];
+                site_dir(cur_site, zlev, dy, sizeof dy);
+                snprintf(pcache, sizeof pcache, "%s/analysis.bin", dy);
+                rk.from_cache = 0;
+                if (FileExists(pcache)) {
+                    rk.from_cache = load_analysis(dy);
+                }
+                if (!rk.from_cache) {
+                    compute_horizon();
+                    compute_year();
+                    save_analysis(dy);
+                }
+                rk.cx = site.valid ? site.x : GW / 2; rk.cy = site.valid ? site.y : GH / 2;
+                ensure_terrain(rk.ell);
+                Params P0 = rk_params(&rk);
+                int bd0 = best_start_region(&P0, rk.cx, rk.cy, rk.rad_km * 1000.0);                 /* on démarre à la meilleure date */
+                rk.start_day = bd0 >= 0 ? bd0 / 4.0f : 0.0f;
+                rk_force = 1; force_recolor = 1;
+            }
+        }
+        g_block = g_dd_open || g_menu_open >= 0 || g_dialog != 0;
         /* --- saisie du nouveau nom d'un point --- */
         if (edit_idx >= 0 && mode != 0) { commit_name(edit_idx, edit_buf); edit_idx = -1; }
         if (edit_idx >= 0) {
@@ -1706,7 +2071,7 @@ int main(void) {
             }
         }
 
-        int sw = GetScreenWidth(), sh = GetScreenHeight();
+        int sw = GetScreenWidth(), sh_total = GetScreenHeight(), sh = sh_total - TOP_H;
         int gm = (mode == 0);
         int sm = (mode == 2);                    /* mode vue du sol */
         float eff_exag = sm ? 1.0f : exag;       /* en vue du sol, relief réel (x1) indispensable pour un horizon exact */
@@ -1730,7 +2095,7 @@ int main(void) {
 
         Rectangle zo = {view.x + view.width - 262, 6, 256, 30};      /* boutons de taille de zone */
         Rectangle ro = {view.x + 12, 34, 392, (mode == 3 && site_ready && year_ready) ? rank_table_height(&rk) : 0.0f};   /* tableau de classement */
-        bool in_view = CheckCollisionPointRec(m, view) && (gm || (!CheckCollisionPointRec(m, zo) && !CheckCollisionPointRec(m, ro)));
+        bool in_view = !g_block && CheckCollisionPointRec(m, view) && (gm || (!CheckCollisionPointRec(m, zo) && !CheckCollisionPointRec(m, ro)));
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { press = m; press_in_view = in_view; }
         if (press_in_view && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             Vector2 d = GetMouseDelta();
@@ -1873,6 +2238,8 @@ int main(void) {
         /* --- dessin 2D --- */
         BeginDrawing();
         ClearBackground(C_BG);
+        rlPushMatrix();
+        rlTranslatef(0.0f, (float)TOP_H, 0.0f);           /* tout le contenu est décalé sous les barres */
         DrawTextureRec(rt.texture, (Rectangle){0, 0, (float)vw, -(float)vh}, (Vector2){view.x, view.y}, WHITE);
         if (gm && have_globe) {
             for (int i = 0; i < npts; i++) {
@@ -1957,14 +2324,14 @@ int main(void) {
             DrawText(TextFormat("Cellule : %.0f m  |  relief x%.1f", cell_m, eff_exag), 18, (int)y, 14, C_MUT); y += 24;
         } else y += 26;
 
-        /* 4 onglets : Globe | Site | Sol | Classer */
+        /* 4 onglets : Globe | Site | Sol | Analyse */
         if (ui_button((Rectangle){18, y, 64, 28}, "Globe", mode == 0) && have_globe) mode = 0;
         if (ui_button((Rectangle){88, y, 64, 28}, "Site", mode == 1)) mode = 1;
         if (ui_button((Rectangle){158, y, 64, 28}, "Sol", sm)) {
             mode = 2;
             if (!site.valid) { site.valid = true; site.x = GW / 2; site.y = GH / 2; }
         }
-        if (ui_button((Rectangle){228, y, 64, 28}, "Classer", mode == 3)) mode = 3;
+        if (ui_button((Rectangle){228, y, 64, 28}, "Analyse", mode == 3)) mode = 3;
         y += 40;
 
         if (gm) {
@@ -1996,8 +2363,17 @@ int main(void) {
                 } else {
                     DrawText("Cliquez sur la Lune pour marquer un point.", 18, (int)y, 14, C_MUT); y += 28;
                 }
-                DrawText("Points enregistrés", 18, (int)y, 16, C_TXT); y += 24;
-                if (npts == 0) DrawText("Aucun pour l'instant.", 18, (int)y, 14, C_MUT);
+                DrawText("Points enregistrés", 18, (int)y, 16, C_TXT);
+                {
+                    Rectangle cb = {188, y - 3, 104, 22};
+                    if (npts > 0) { if (ui_button(cb, "Tout effacer", false)) g_dialog = 5; }
+                    else {                                           /* grisé : rien à effacer */
+                        DrawRectangleRec(cb, C_BTN);
+                        DrawText("Tout effacer", (int)(cb.x + (cb.width - MeasureText("Tout effacer", 16)) / 2), (int)y, 16, C_MUT);
+                    }
+                }
+                y += 24;
+                if (npts == 0) { DrawText("Aucun pour l'instant.", 18, (int)y, 14, C_MUT); y += 22; }
                 else DrawText("(cliquez sur un nom pour le modifier)", 18, sh - 70, 12, C_MUT);
                 int del = -1;
                 for (int i = 0; i < npts; i++) {
@@ -2075,7 +2451,7 @@ int main(void) {
                 } else {
                     float y0 = y;
                     y -= panel_scroll;
-                    BeginScissorMode(0, (int)y0, PANEL_W, sh - (int)y0);
+                    BeginScissorMode(0, (int)y0 + TOP_H, PANEL_W, sh - (int)y0);
                     g_clip_top = y0;
                     float side = GW * cell_m / 1000.0f;
                     if (rk.start_day > 365.0f - rk.days) rk.start_day = 365.0f - rk.days;
@@ -2319,6 +2695,61 @@ int main(void) {
                 snprintf(rk.note, sizeof rk.note, "Site %d enregistré : point %s (voir l'onglet Globe).", i + 1, pts[npts - 1].id);
             } else snprintf(rk.note, sizeof rk.note, "Impossible : %d points enregistrés au maximum.", MAX_PTS);
         }
+        rlPopMatrix();
+        SetMouseOffset(0, 0);                              /* barre de menus, notifications et dialogues : coordonnées d'écran réelles */
+
+        MMenu menus[5];
+        memset(menus, 0, sizeof menus);
+        int can_site = cur_site >= 0, can_prep = cur_site >= 0 || zone_valid, can_year = have_frame && year_loaded;
+        menus[0].title = "Fichier";
+        mi(&menus[0], "Nouveau point sur le globe", NULL, A_NEWPT, have_globe);
+        mi(&menus[0], "-", NULL, A_NONE, 0);
+        mi(&menus[0], "Exporter le classement en CSV", "Ctrl+E", A_EXPORT, mode == 3 && site_ready && year_ready);
+        mi(&menus[0], "Ouvrir le dossier d'export", NULL, A_OPEN_EXPORTS, 1);
+        mi(&menus[0], "Ouvrir le dossier des données", NULL, A_OPEN_DATA, 1);
+        mi(&menus[0], "-", NULL, A_NONE, 0);
+        mi(&menus[0], "Quitter", "Alt+F4", A_QUIT, 1);
+        menus[1].title = "Édition";
+        mi(&menus[1], "Renommer le point actuel", "F2", A_RENAME, can_site);
+        mi(&menus[1], "Supprimer le point actuel", NULL, A_DELETE, can_site);
+        mi(&menus[1], "Supprimer tous les points...", NULL, A_CLEAR_ALL, npts > 0);
+        mi(&menus[1], "-", NULL, A_NONE, 0);
+        mi(&menus[1], "Réinitialiser les réglages du classement", NULL, A_RESET_RK, 1);
+        menus[2].title = "Affichage";
+        mi(&menus[2], "Globe", "Ctrl+1", A_TAB0, have_globe);
+        mi(&menus[2], "Site", "Ctrl+2", A_TAB1, 1);
+        mi(&menus[2], "Sol (vue à 360°)", "Ctrl+3", A_TAB2, 1);
+        mi(&menus[2], "Analyse", "Ctrl+4", A_TAB3, 1);
+        mi(&menus[2], "-", NULL, A_NONE, 0);
+        mi(&menus[2], "Zone plus grande", NULL, A_ZOOMIN, can_prep && zlev < 4);
+        mi(&menus[2], "Zone plus petite", NULL, A_ZOOMOUT, can_prep && zlev > 0);
+        mi(&menus[2], "-", NULL, A_NONE, 0);
+        mi(&menus[2], "Plein écran", "F11", A_FULLSCREEN, 1);
+        menus[3].title = "Outils";
+        mi(&menus[3], "Préparer / re-préparer le site actuel", NULL, A_PREPARE, can_prep);
+        mi(&menus[3], "Analyser l'année (onglet Analyse)", NULL, A_ANALYZE, can_year);
+        mi(&menus[3], "Oublier l'analyse enregistrée du site", NULL, A_CLEAR_CACHE, 1);
+        mi(&menus[3], "-", NULL, A_NONE, 0);
+        mi(&menus[3], g_csv_fr ? "Format CSV : Excel FR (passer en international)" : "Format CSV : international (passer en Excel FR)", NULL, A_CSV_FMT, 1);
+        mi(&menus[3], "-", NULL, A_NONE, 0);
+        mi(&menus[3], "Vérifier l'installation...", NULL, A_DIAG, 1);
+        menus[4].title = "Aide";
+        mi(&menus[4], "Guide d'utilisation", "F1", A_HELP, 1);
+        mi(&menus[4], "Raccourcis clavier", NULL, A_SHORTCUTS, 1);
+        mi(&menus[4], "-", NULL, A_NONE, 0);
+        mi(&menus[4], "À propos de Selene", NULL, A_ABOUT, 1);
+        int chosen_act = menu_bar(sw, menus, 5, g_dialog == 0);
+        if (chosen_act != A_NONE) menu_act_prev = chosen_act;
+
+        if (GetTime() < g_toast_until) {                    /* notification temporaire en bas de la fenêtre */
+            int tw = MeasureText(g_toast, 16) + 36;
+            Rectangle tb = {(float)(sw - tw) / 2 + PANEL_W / 2.0f, (float)sh_total - 52, (float)tw, 34};
+            DrawRectangleRec(tb, (Color){16, 21, 28, 240});
+            DrawRectangleLinesEx(tb, 1, C_SUN);
+            DrawText(g_toast, (int)tb.x + 18, (int)tb.y + 9, 16, C_TXT);
+        }
+        if (g_dialog && draw_dialog(sw, sh_total)) g_dialog = 0;
+        draw_busy(sw, sh_total);
         EndDrawing();
     }
     if (logo_tex.id > 0) UnloadTexture(logo_tex);
