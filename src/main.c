@@ -54,6 +54,8 @@ static int g_ntr = 0;
 static char *g_tr_buf = NULL;
 static char g_lang[16] = "fr";
 static int g_units = 0;                      /* 0 = métrique (m, km), 1 = impérial (ft, mi) */
+static float g_ui_scale = 0.0f;             /* échelle de l'interface choisie : 0 = automatique */
+static float g_ui_s = 1.0f;                 /* échelle réellement appliquée (limitée par la taille de l'écran et de la fenêtre) */
 static int g_moon_fs = 0; // 0 = mode normal avec panneau latéral, 1 = vue lune en plein écran
 
 static int tr_cmp(const void *a, const void *b) { return strcmp(((const TrEntry *)a)->key, ((const TrEntry *)b)->key); }
@@ -121,7 +123,8 @@ static const char *sln_textformat(const char *fmt, ...) {
  * Les caractères chargés = latin + tous ceux des fichiers de langue (dossier lang) (ajouter une langue ne demande aucune autre étape). ----- */
 #define LANG_FONT "lang/NotoSansCJKjp-subset.otf"
 static Font g_font;
-static int g_font_on = 0, g_font_tried = 0;
+static int g_font_on = 0, g_font_failed = 0, g_font_px = 0;
+static int *g_cps = NULL, g_ncps = 0;             /* caractères à charger (latin + fichiers de langue) */
 
 static void cp_push(int **cps, int *n, int *cap, int cp) {
     if (*n >= *cap) { *cap *= 2; *cps = (int *)realloc(*cps, (size_t)*cap * sizeof(int)); }
@@ -130,39 +133,46 @@ static void cp_push(int **cps, int *n, int *cap, int cp) {
 static int cp_cmp(const void *a, const void *b) { return *(const int *)a - *(const int *)b; }
 
 static void font_update(void) {
-    if (g_font_tried || !IsWindowReady()) return;
-    g_font_tried = 1;
-    if (!FileExists(LANG_FONT)) return;
-    int cap = 4096, n = 0;
-    int *cps = (int *)malloc((size_t)cap * sizeof(int));
-    if (!cps) return;
-    for (int c = 32; c <= 0x17F; c++) if (c < 0x7F || c >= 0xA0) cp_push(&cps, &n, &cap, c);
-    for (int c = 0x2010; c <= 0x2027; c++) cp_push(&cps, &n, &cap, c);
-    for (int c = 0x2190; c <= 0x2193; c++) cp_push(&cps, &n, &cap, c);
-    cp_push(&cps, &n, &cap, 0x2212);
-    if (DirectoryExists("lang")) {
-        FilePathList fl = LoadDirectoryFilesEx("lang", ".txt", false);
-        for (unsigned int i = 0; i < fl.count; i++) {
-            char *txt = LoadFileText(fl.paths[i]);
-            if (!txt) continue;
-            for (const char *q = txt; *q;) {
-                int sz = 1;
-                int cp = GetCodepointNext(q, &sz);
-                if (cp >= 32 && cp != 0xFEFF && cp != 0x7F) cp_push(&cps, &n, &cap, cp);
-                q += sz > 0 ? sz : 1;
+    if (g_font_failed || !IsWindowReady()) return;
+    int want = (int)(18.0f * g_ui_s + 0.5f);          /* l'atlas suit l'échelle de l'interface : texte net à toutes les tailles */
+    if (want < 16) want = 16;
+    if (want > 64) want = 64;
+    if (want == g_font_px) return;
+    if (!FileExists(LANG_FONT)) { g_font_failed = 1; return; }
+    if (!g_cps) {
+        int cap = 4096, n = 0;
+        int *cps = (int *)malloc((size_t)cap * sizeof(int));
+        if (!cps) { g_font_failed = 1; return; }
+        for (int c = 32; c <= 0x17F; c++) if (c < 0x7F || c >= 0xA0) cp_push(&cps, &n, &cap, c);
+        for (int c = 0x2010; c <= 0x2027; c++) cp_push(&cps, &n, &cap, c);
+        for (int c = 0x2190; c <= 0x2193; c++) cp_push(&cps, &n, &cap, c);
+        cp_push(&cps, &n, &cap, 0x2212);
+        if (DirectoryExists("lang")) {
+            FilePathList fl = LoadDirectoryFilesEx("lang", ".txt", false);
+            for (unsigned int i = 0; i < fl.count; i++) {
+                char *txt = LoadFileText(fl.paths[i]);
+                if (!txt) continue;
+                for (const char *q = txt; *q;) {
+                    int sz = 1;
+                    int cp = GetCodepointNext(q, &sz);
+                    if (cp >= 32 && cp != 0xFEFF && cp != 0x7F) cp_push(&cps, &n, &cap, cp);
+                    q += sz > 0 ? sz : 1;
+                }
+                UnloadFileText(txt);
             }
-            UnloadFileText(txt);
+            UnloadDirectoryFiles(fl);
         }
-        UnloadDirectoryFiles(fl);
+        qsort(cps, (size_t)n, sizeof(int), cp_cmp);
+        int u = 0;
+        for (int i = 0; i < n; i++) if (i == 0 || cps[i] != cps[i - 1]) cps[u++] = cps[i];
+        g_cps = cps; g_ncps = u;
     }
-    qsort(cps, (size_t)n, sizeof(int), cp_cmp);
-    int u = 0;
-    for (int i = 0; i < n; i++) if (i == 0 || cps[i] != cps[i - 1]) cps[u++] = cps[i];
-    g_font = LoadFontEx(LANG_FONT, 32, cps, u);
-    free(cps);
-    if (g_font.texture.id == GetFontDefault().texture.id) return;        /* chargement échoué : police par défaut */
+    if (g_font_on) { UnloadFont(g_font); g_font_on = 0; }
+    g_font = LoadFontEx(LANG_FONT, want, g_cps, g_ncps);
+    if (g_font.texture.id == GetFontDefault().texture.id) { g_font_failed = 1; return; }      /* chargement échoué : police par défaut */
     SetTextureFilter(g_font.texture, TEXTURE_FILTER_BILINEAR);
     g_font_on = 1;
+    g_font_px = want;
 }
 
 static void sln_draw_text(const char *t, int x, int y, int size, Color c) {
@@ -210,6 +220,7 @@ static void load_settings(void) {
         line[strcspn(line, "\r\n")] = 0;
         if (strncmp(line, "lang=", 5) == 0) tr_load(line + 5);
         else if (strncmp(line, "units=", 6) == 0) g_units = strcmp(line + 6, "imperial") == 0;
+        else if (strncmp(line, "scale=", 6) == 0) { g_ui_scale = strcmp(line + 6, "auto") == 0 ? 0.0f : (float)atof(line + 6); if (g_ui_scale != 0.0f && (g_ui_scale < 0.75f || g_ui_scale > 4.0f)) g_ui_scale = 0.0f; }
     }
     fclose(f);
 }
@@ -218,6 +229,7 @@ static void save_settings(void) {
     FILE *f = fopen("data/settings.txt", "w");
     if (!f) return;
     fprintf(f, "lang=%s\nunits=%s\n", g_lang, g_units ? "imperial" : "metric");
+    if (g_ui_scale > 0.0f) fprintf(f, "scale=%.2f\n", g_ui_scale); else fprintf(f, "scale=auto\n");
     fclose(f);
 }
 
@@ -2031,9 +2043,9 @@ static int export_csv(Rank *r, int cur_site, int zlev, char *msg, size_t msgn) {
 /* ===================== Barre de menus, boîtes de dialogue, notifications ===================== */
 enum { A_NONE = 0, A_NEWPT, A_EXPORT, A_OPEN_EXPORTS, A_OPEN_DATA, A_QUIT, A_RENAME, A_DELETE, A_RESET_RK,
        A_TAB0, A_TAB1, A_TAB2, A_TAB3, A_ZOOMIN, A_ZOOMOUT, A_FULLSCREEN, A_PREPARE, A_ANALYZE, A_CLEAR_CACHE,
-       A_CSV_FMT, A_DIAG, A_HELP, A_SHORTCUTS, A_ABOUT, A_CLEAR_ALL, A_PREFS, A_MOONFS };
+       A_CSV_FMT, A_DIAG, A_HELP, A_SHORTCUTS, A_ABOUT, A_CLEAR_ALL, A_PREFS, A_MOONFS, A_UI_BIGGER, A_UI_SMALLER, A_UI_AUTO };
 typedef struct { const char *label; const char *key; int act; int on; } MItem;
-typedef struct { const char *title; MItem it[12]; int n; } MMenu;
+typedef struct { const char *title; MItem it[18]; int n; } MMenu;
 
 static int g_menu_open = -1;           /* menu déroulé (-1 = aucun) */
 static int g_dialog = 0;               /* 0 aucune, 1 aide, 2 raccourcis, 3 à propos, 4 vérification */
@@ -2065,7 +2077,7 @@ static double g_toast_until = 0.0;
 static void toast(const char *msg) { snprintf(g_toast, sizeof g_toast, "%s", msg); g_toast_until = GetTime() + 4.5; }
 
 static void mi(MMenu *m, const char *label, const char *key, int act, int on) {
-    if (m->n < 12) m->it[m->n++] = (MItem){label, key, act, on};
+    if (m->n < 18) m->it[m->n++] = (MItem){label, key, act, on};
 }
 
 /* Dessine la barre et renvoie l'action choisie (A_NONE sinon). Coordonnées d'écran réelles (pas de décalage). */
@@ -2169,6 +2181,8 @@ static const char *KEYS[] = {
     "Ctrl + E                  Exporter le classement en CSV",
     "Ctrl + N                  Nouveau point (saisie de coordonnées)",
     "Ctrl + ,                  Préférences (langue, unités)",
+    "Ctrl + =  /  Ctrl + -     Interface plus grande / plus petite",
+    "Ctrl + 0                  Échelle automatique de l'interface",
     "F1                        Guide d'utilisation",
     "F2                        Renommer le point actuel",
     "F11                       Plein écran",
@@ -2242,7 +2256,7 @@ static int draw_dialog(int sw, int sh_total) {
     int bw = sw - 120 < 940 ? sw - 120 : 940, bh = sh_total - 120 < 640 ? sh_total - 120 : 640;
     if (g_dialog == 5) { bw = 560; bh = 250; }
     if (g_dialog == 6) { bw = 640; bh = 430; }
-    if (g_dialog == 7) { bw = 700; bh = 430; }
+    if (g_dialog == 7) { bw = 700; bh = 560; }
     Rectangle box = {(float)(sw - bw) / 2, (float)MENU_H + (float)(sh_total - MENU_H - bh) / 2, (float)bw, (float)bh};
     DrawRectangle(0, MENU_H, sw, sh_total - MENU_H, (Color){0, 0, 0, 150});
     DrawRectangleRec(box, C_PANEL);
@@ -2324,7 +2338,17 @@ static int draw_dialog(int sw, int sh_total) {
         DrawText("Unités de mesure", x, y, 16, C_TXT); y += 30;
         if (ui_button((Rectangle){(float)x, (float)y, 230, 30}, "Métrique (m, km)", g_units == 0)) { g_units = 0; save_settings(); }
         if (ui_button((Rectangle){(float)x + 240, (float)y, 230, 30}, "Impérial (ft, mi)", g_units == 1)) { g_units = 1; save_settings(); }
-        y += 56;
+        y += 52;
+        DrawText("Échelle de l'interface", x, y, 16, C_TXT); y += 30;
+        {
+            static const float opt[8] = {0.0f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f};       /* 0 = automatique */
+            for (int i = 0; i < 8; i++) {
+                Rectangle sr = {(float)(x + (i % 4) * 160), (float)(y + (i / 4) * 36), 150, 28};
+                const char *lb = i == 0 ? "Auto" : TextFormat("%.0f %%", opt[i] * 100.0f);
+                if (ui_button(sr, lb, fabsf(g_ui_scale - opt[i]) < 0.001f)) { g_ui_scale = opt[i]; save_settings(); }
+            }
+        }
+        y += 84;
         DrawText("Les exports CSV restent toujours en unités métriques (m, km).", x, y, 14, C_MUT); y += 26;
         DrawText("Ajouter une langue : copiez lang/_modele.txt en lang/xx.txt, traduisez la colonne de droite,", x, y, 14, C_MUT); y += 20;
         DrawText("puis ajoutez en première ligne  #name=NomDeLaLangue.  Aucune installation n'est nécessaire.", x, y, 14, C_MUT);
@@ -2362,6 +2386,24 @@ static int draw_dialog(int sw, int sh_total) {
 /* Les noms des points d'intérêt n'apparaissent que quand on a assez zoomé (sinon la sphère serait illisible) */
 static int dist_ok_labels(float d) { return d < 235.0f; }
 
+/* Échelle d'interface voulue. Automatique = le plus grand de (échelle d'affichage de Windows, hauteur du moniteur / 1080), arrondi au quart.
+ * Jamais plus grande que ce que le moniteur peut afficher (l'interface garde une taille logique minimale de 900 x 728). */
+static float ui_scale_wanted(void) {
+    int cm = GetCurrentMonitor();
+    float mw = (float)GetMonitorWidth(cm), mh = (float)GetMonitorHeight(cm);
+    float s = g_ui_scale;
+    if (s <= 0.0f) {
+        Vector2 d = GetWindowScaleDPI();
+        s = fmaxf(fmaxf(d.x, d.y), mh / 1080.0f);
+        s = roundf(s * 4.0f) / 4.0f;
+    }
+    if (s < 1.0f) s = 1.0f;
+    if (s > 3.0f) s = 3.0f;
+    float cap = fminf(mw * 0.98f / 900.0f, mh * 0.92f / (float)(700 + TOP_H));
+    if (s > cap) s = fmaxf(cap, 0.75f);
+    return s;
+}
+
 /* ===================== Programme principal ===================== */
 typedef struct { bool valid; int x, y; } Site;
 
@@ -2392,7 +2434,14 @@ int main(void) {
         logo_tex = LoadTexture("data/logo.png");
         SetTextureFilter(logo_tex, TEXTURE_FILTER_BILINEAR);
     }
-    SetWindowMinSize(900, 700 + TOP_H);
+    {                                                   /* taille de départ proportionnelle à l'échelle : grand écran = grande fenêtre */
+        int cm = GetCurrentMonitor(), mw = GetMonitorWidth(cm), mh = GetMonitorHeight(cm);
+        Vector2 mp = GetMonitorPosition(cm);
+        float s0 = ui_scale_wanted();
+        int w = (int)fminf(1440.0f * s0, mw * 0.96f), h = (int)fminf((860.0f + TOP_H) * s0, mh * 0.90f);
+        SetWindowSize(w, h);
+        SetWindowPosition((int)mp.x + (mw - w) / 2, (int)mp.y + (mh - h) / 4);
+    }
     SetTargetFPS(60);
     SetExitKey(KEY_NULL);                        /* Échap sert à annuler une saisie, il ne ferme plus la fenêtre */
     if (!DirectoryExists("data")) {
@@ -2451,7 +2500,29 @@ int main(void) {
     const char *layer_names[5] = {"Éclairement solaire", "Visibilité de la Terre", "Altitude", "Pente", "Vue réelle"};
 
     while (!WindowShouldClose() && !quit_req) {
-        SetMouseOffset(0, -TOP_H);                  /* le contenu est dessiné sous les barres */
+        {                                             /* échelle de l'interface */
+            static float min_s = 0.0f;
+            float wnt = ui_scale_wanted();
+            if (fabsf(wnt - min_s) > 0.001f) {
+                int nw = (int)(900.0f * wnt), nh = (int)((700.0f + TOP_H) * wnt);
+                SetWindowMinSize(nw, nh);
+                if (min_s > 0.0f && wnt > min_s && !IsWindowMaximized()) {          /* plus grand : on agrandit la fenêtre si besoin, sans sortir de l'écran */
+                    int cm = GetCurrentMonitor(), mw = GetMonitorWidth(cm), mh = GetMonitorHeight(cm);
+                    int ww = GetScreenWidth() < nw ? nw : GetScreenWidth(), hh = GetScreenHeight() < nh ? nh : GetScreenHeight();
+                    Vector2 wp = GetWindowPosition(), mp = GetMonitorPosition(cm);
+                    if (wp.x + ww > mp.x + mw) wp.x = fmaxf(mp.x, mp.x + mw - ww);
+                    if (wp.y + hh > mp.y + mh) wp.y = fmaxf(mp.y, mp.y + mh - hh);
+                    SetWindowSize(ww, hh);
+                    SetWindowPosition((int)wp.x, (int)wp.y);
+                }
+                min_s = wnt;
+            }
+            float lim = fminf(GetScreenWidth() / 900.0f, GetScreenHeight() / (float)(700 + TOP_H));   /* garde-fou : l'interface doit tenir dans la fenêtre */
+            g_ui_s = fmaxf(fminf(wnt, lim), 0.6f);
+            font_update();                            /* avant tout dessin : la police est reconstruite à la bonne taille */
+        }
+        SetMouseScale(1.0f / g_ui_s, 1.0f / g_ui_s);
+        SetMouseOffset(0, (int)(-TOP_H * g_ui_s));      /* le contenu est dessiné sous les barres */
 
         /* --- actions des menus et raccourcis clavier --- */
         int act = menu_act_prev;
@@ -2465,6 +2536,9 @@ int main(void) {
             if (ctrl && IsKeyPressed(KEY_E)) act = A_EXPORT;
             if (ctrl && IsKeyPressed(KEY_N)) act = A_NEWPT;
             if (ctrl && IsKeyPressed(KEY_COMMA)) act = A_PREFS;
+            if (ctrl && (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD))) act = A_UI_BIGGER;
+            if (ctrl && (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT) || IsKeyPressed(KEY_SIX))) act = A_UI_SMALLER;     /* KEY_SIX : le « - » d'un clavier AZERTY */
+            if (ctrl && (IsKeyPressed(KEY_ZERO) || IsKeyPressed(KEY_KP_0))) act = A_UI_AUTO;
             if (IsKeyPressed(KEY_F1)) act = A_HELP;
             if (IsKeyPressed(KEY_F2)) act = A_RENAME;
             if (IsKeyPressed(KEY_F11)) act = A_FULLSCREEN;
@@ -2511,6 +2585,20 @@ int main(void) {
             case A_ZOOMOUT: if (zlev > 0 && (cur_site >= 0 || zone_valid)) { zlev--; pending_load = cur_site; } break;
             case A_FULLSCREEN: ToggleBorderlessWindowed(); break;
             case A_MOONFS: g_moon_fs = !g_moon_fs; break;
+            case A_UI_BIGGER: case A_UI_SMALLER: {
+                static const float st[7] = {1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f};
+                float cw = g_ui_scale > 0.0f ? g_ui_scale : ui_scale_wanted(), nv = cw;
+                if (act == A_UI_BIGGER) { nv = st[6]; for (int i = 6; i >= 0; i--) if (st[i] > cw + 0.001f) nv = st[i]; }
+                else { nv = st[0]; for (int i = 0; i < 7; i++) if (st[i] < cw - 0.001f) nv = st[i]; }
+                g_ui_scale = nv;
+                save_settings();
+                toast(TextFormat("Échelle de l'interface : %.0f %%", nv * 100.0f));
+                break; }
+            case A_UI_AUTO:
+                g_ui_scale = 0.0f;
+                save_settings();
+                toast("Échelle de l'interface : automatique");
+                break;
             case A_PREPARE:
                 if (cur_site >= 0 || zone_valid) pending_prepare = cur_site;
                 else toast("Choisissez d'abord un point enregistré (onglet Globe).");
@@ -2677,7 +2765,7 @@ int main(void) {
             }
         }
 
-        int sw = GetScreenWidth(), sh_total = GetScreenHeight(), sh = sh_total - TOP_H;
+        int sw = (int)(GetScreenWidth() / g_ui_s), sh_total = (int)(GetScreenHeight() / g_ui_s), sh = sh_total - TOP_H;
         int gm = (mode == 0);
         int sm = (mode == 2);                    /* mode vue du sol */
         int real_view = (mode == 1 && layer == 4);        /* onglet Site, couche « Vue réelle » */
@@ -2687,10 +2775,12 @@ int main(void) {
         Rectangle tl = {PANEL_W, (float)(sh - TL_H), (float)(sw - PANEL_W), TL_H};
         Vector2 m = GetMousePosition();
         int vw = (int)view.width, vh = (int)view.height;
-        if (vw != rt_w || vh != rt_h) {
+        int rtw = (int)(vw * g_ui_s + 0.5f), rth = (int)(vh * g_ui_s + 0.5f);       /* la vue 3D est rendue en résolution réelle (nette quelle que soit l'échelle) */
+        if (rtw != rt_w || rth != rt_h) {
             if (rt.id) UnloadRenderTexture(rt);
-            rt = LoadRenderTexture(vw, vh);
-            rt_w = vw; rt_h = vh;
+            rt = LoadRenderTexture(rtw, rth);
+            SetTextureFilter(rt.texture, TEXTURE_FILTER_BILINEAR);
+            rt_w = rtw; rt_h = rth;
         }
 
         /* --- caméra (orbitale pour Globe/Site/Classer, première personne pour Sol) --- */
@@ -2879,8 +2969,10 @@ int main(void) {
         BeginDrawing();
         ClearBackground(C_BG);
         rlPushMatrix();
+        rlScalef(g_ui_s, g_ui_s, 1.0f);                   /* toute l'interface (textes, boutons, menus) est agrandie d'un coup */
+        rlPushMatrix();
         rlTranslatef(0.0f, (float)TOP_H, 0.0f);           /* tout le contenu est décalé sous les barres */
-        DrawTextureRec(rt.texture, (Rectangle){0, 0, (float)vw, -(float)vh}, (Vector2){view.x, view.y}, WHITE);
+        DrawTexturePro(rt.texture, (Rectangle){0, 0, (float)rt_w, -(float)rt_h}, (Rectangle){view.x, view.y, (float)vw, (float)vh}, (Vector2){0, 0}, 0.0f, WHITE);
         if (gm && have_globe) {
             for (int i = 0; i < npts; i++) {
                 Vector3 wp = Vector3Scale(sph(pts[i].lat, pts[i].lon), GLOBE_R * 1.02f);
@@ -3024,7 +3116,7 @@ int main(void) {
             } else {
                 float y0 = y;                                         /* le panneau défile avec la molette (la liste peut être longue) */
                 y -= panel_scroll;
-                BeginScissorMode(0, (int)y0 + TOP_H, PANEL_W, sh - (int)y0);
+                BeginScissorMode(0, (int)((y0 + TOP_H) * g_ui_s), (int)(PANEL_W * g_ui_s) + 1, GetScreenHeight() - (int)((y0 + TOP_H) * g_ui_s));
                 g_clip_top = y0;
                 ui_slider(18, y, 274, "Exagération du relief", &gexag, 1, 40, TextFormat("x%.0f", gexag)); y += 50;
                 if (ui_button((Rectangle){18, y, 134, 26}, "Pôle Sud", false)) { gpitch = -1.45f; gyaw = 0.0f; }
@@ -3199,7 +3291,7 @@ int main(void) {
                 } else {
                     float y0 = y;
                     y -= panel_scroll;
-                    BeginScissorMode(0, (int)y0 + TOP_H, PANEL_W, sh - (int)y0);
+                    BeginScissorMode(0, (int)((y0 + TOP_H) * g_ui_s), (int)(PANEL_W * g_ui_s) + 1, GetScreenHeight() - (int)((y0 + TOP_H) * g_ui_s));
                     g_clip_top = y0;
                     float side = GW * cell_m / 1000.0f;
                     if (rk.start_day > 365.0f - rk.days) rk.start_day = 365.0f - rk.days;
@@ -3480,6 +3572,10 @@ int main(void) {
         mi(&menus[2], "-", NULL, A_NONE, 0);
         mi(&menus[2], "Plein écran", "F11", A_FULLSCREEN, 1);
         mi(&menus[2], g_moon_fs ? "Quitter la Lune en plein écran" : "Lune en plein écran", "Échap", A_MOONFS, 1);
+        mi(&menus[2], "-", NULL, A_NONE, 0);
+        mi(&menus[2], "Interface plus grande", "Ctrl++", A_UI_BIGGER, 1);
+        mi(&menus[2], "Interface plus petite", "Ctrl+-", A_UI_SMALLER, 1);
+        mi(&menus[2], "Échelle automatique", "Ctrl+0", A_UI_AUTO, 1);
         menus[3].title = "Outils";
         mi(&menus[3], "Préparer / re-préparer le site actuel", NULL, A_PREPARE, can_prep);
         mi(&menus[3], "Analyser l'année (onglet Analyse)", NULL, A_ANALYZE, can_year);
@@ -3506,6 +3602,7 @@ int main(void) {
         }
         if (g_dialog && draw_dialog(sw, sh_total)) g_dialog = 0;
         draw_busy(sw, sh_total);
+        rlPopMatrix();
         EndDrawing();
     }
     if (logo_tex.id > 0) UnloadTexture(logo_tex);
