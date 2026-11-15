@@ -38,7 +38,7 @@ The team defined the concept and requirements, tested the software and made the 
 
 ## Deliverables / Livrables
 
-- ([Video prensentation Selene](https://mega.nz/file/BsQyRKTD#AGUAdAAAABhSIJWqJIWNEwAAAAAAAAAAUqSVmySFjRM))_
+- [Video prensentation Selene](https://mega.nz/file/BsQyRKTD#AGUAdAAAABhSIJWqJIWNEwAAAAAAAAAAUqSVmySFjRM)
 
 
 ## How to run it / Comment le lancer
