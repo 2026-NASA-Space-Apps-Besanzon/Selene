@@ -16,16 +16,17 @@ if errorlevel 1 goto :echec
 
 echo.
 echo === Compilation de Selene ===
-gcc -std=c11 -O2 -Wall -Wextra src\main.c app_res.o -o selene.exe -lraylib -lopengl32 -lgdi32 -lwinmm -lm
+REM winproc.c : lancement des outils sans fenetre de console. -mwindows : pas de console au demarrage. -lshell32 : ouverture des dossiers.
+gcc -std=c11 -O2 -Wall -Wextra src\main.c src\winproc.c app_res.o -o selene.exe -lraylib -lopengl32 -lgdi32 -lwinmm -lshell32 -lm -mwindows
 if errorlevel 1 goto :echec
 
 echo.
 echo === OK : selene.exe cree ===
-pause
+if /i not "%1"=="nopause" pause
 exit /b 0
 
 :echec
 echo.
 echo === ECHEC DE LA COMPILATION ===
-pause
+if /i not "%1"=="nopause" pause
 exit /b 1
