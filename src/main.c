@@ -265,6 +265,7 @@ static void lang_scan(void) {
 int sln_run_hidden(const char *cmdline);
 void sln_open(const char *path);
 void sln_hide_console(void);
+void sln_scan_tifs(const char *dir, int rec, void (*cb)(const char *path, unsigned long long size));
 
 /* ===================== Paramètres ===================== */
 #define GW 128                  /* largeur de la grille (cellules) */
@@ -2209,7 +2210,29 @@ static const char *ABOUT[] = {
 };
 
 /* ----- vérification de l'installation ----- */
-static struct { int globe, tool_exe, tool_py, python_ok, nsites, ntif; char polar[80], global[80], cwd[260], seen[200]; } g_diag;
+static struct { int globe, tool_exe, tool_py, python_ok, nsites, ntif; char polar[80], global[80], cwd[260], seen[200], badext[96]; } g_diag;
+
+/* Appelée pour chaque .tif/.tiff trouvé (sln_scan_tifs : fonctionne aussi pour les fichiers de plus de 2 Go) */
+static void diag_file_cb(const char *path, unsigned long long size) {
+    const char *nm = GetFileName(path);
+    char low[96];
+    size_t j = 0;
+    for (; nm[j] && j < sizeof low - 1; j++) low[j] = (char)((nm[j] >= 'A' && nm[j] <= 'Z') ? nm[j] + 32 : nm[j]);
+    low[j] = 0;
+    const char *dot = strrchr(nm, '.');
+    if (!dot || (strcmp(dot, ".tif") != 0 && strcmp(dot, ".TIF") != 0 && strcmp(dot, ".tiff") != 0 && strcmp(dot, ".TIFF") != 0 && strcmp(dot, ".Tif") != 0)) {
+        if (!g_diag.badext[0]) snprintf(g_diag.badext, sizeof g_diag.badext, "%s", nm);      /* « ldem... » mais pas en .tif / .tiff */
+        return;
+    }
+    g_diag.ntif++;
+    if (strlen(g_diag.seen) + strlen(nm) + 3 < sizeof g_diag.seen && g_diag.ntif <= 4)
+        strcat(strcat(g_diag.seen, g_diag.seen[0] ? ", " : ""), nm);
+    if (strstr(low, "ldem") == NULL) return;
+    if (strstr(low, "80s") != NULL) { if (!g_diag.polar[0]) snprintf(g_diag.polar, sizeof g_diag.polar, "%s", nm); }
+    else if (strstr(low, "_err") == NULL && strstr(low, "effres") == NULL) {
+        if (!g_diag.global[0]) snprintf(g_diag.global, sizeof g_diag.global, "%s  (%.1f GB)", nm, (double)size / 1e9);
+    }
+}
 
 static void diag_scan(void) {
     memset(&g_diag, 0, sizeof g_diag);
@@ -2219,25 +2242,8 @@ static void diag_scan(void) {
     if (!g_diag.tool_exe && g_diag.tool_py)
         g_diag.python_ok = sln_run_hidden("python --version > nul 2>&1") == 0 || sln_run_hidden("py --version > nul 2>&1") == 0;
     snprintf(g_diag.cwd, sizeof g_diag.cwd, "%s", GetWorkingDirectory());
-    const char *dirs[2] = {".", "data"};               /* "data" est parcouru avec tous ses sous-dossiers (source, sources, ...), comme tools/prepare_data.py */
-    for (int d = 0; d < 2; d++) {
-        if (!DirectoryExists(dirs[d])) continue;
-        FilePathList fl = LoadDirectoryFilesEx(dirs[d], ".tif;.tiff;.TIF;.TIFF", d == 1);
-        for (unsigned int i = 0; i < fl.count; i++) {
-            const char *nm = GetFileName(fl.paths[i]);
-            char low[96];
-            size_t j = 0;
-            for (; nm[j] && j < sizeof low - 1; j++) low[j] = (char)((nm[j] >= 'A' && nm[j] <= 'Z') ? nm[j] + 32 : nm[j]);
-            low[j] = 0;
-            g_diag.ntif++;
-            if (strlen(g_diag.seen) + strlen(nm) + 3 < sizeof g_diag.seen && g_diag.ntif <= 4)
-                strcat(strcat(g_diag.seen, g_diag.seen[0] ? ", " : ""), nm);
-            if (strstr(low, "ldem") == NULL) continue;
-            if (strstr(low, "80s") != NULL) { if (!g_diag.polar[0]) snprintf(g_diag.polar, sizeof g_diag.polar, "%s", nm); }
-            else if (strstr(low, "_err") == NULL && strstr(low, "effres") == NULL) { if (!g_diag.global[0]) snprintf(g_diag.global, sizeof g_diag.global, "%s", nm); }
-        }
-        UnloadDirectoryFiles(fl);
-    }
+    sln_scan_tifs(".", 0, diag_file_cb);              /* dossier du programme */
+    sln_scan_tifs("data", 1, diag_file_cb);           /* data/ avec tous ses sous-dossiers (source, globe, ...), comme tools/prepare_data.py */
     for (int i = 0; i < npts; i++) g_diag.nsites += site_prepared(i, 1);
 }
 
@@ -2279,6 +2285,9 @@ static int draw_dialog(int sw, int sh_total) {
         diag_line(x, &y, tool, "Outil de préparation des sites",
                   g_diag.tool_exe ? "tools/prepare_data.exe (autonome)" : (g_diag.python_ok ? "Python détecté : tools/prepare_data.py" : "Manquant : placez tools/prepare_data.exe, ou installez Python + rasterio."));
         diag_line(x, &y, g_diag.polar[0] != 0, "Relief LOLA du pôle Sud (80 m par pixel)", g_diag.polar[0] ? g_diag.polar : "Absent : placez LDEM_80S_80MPP_ADJ.tif dans data/source (ou un sous-dossier de data).");
+        if (g_diag.global[0] == 0 && g_diag.badext[0]) {
+            DrawText(TextFormat("Fichier LDEM avec une extension inattendue (.tif attendu) : %s", g_diag.badext), x + 24, y + 4, 13, C_BAD); y += 22;
+        }
         diag_line(x, &y, g_diag.global[0] != 0, "Relief LOLA mondial (hors pôle Sud)", g_diag.global[0] ? g_diag.global : "Absent : placez ldem_64 ou LDEM128 (.tif) dans data/source (ou un sous-dossier de data).");
         {
             char sb[420];
@@ -2289,8 +2298,8 @@ static int draw_dialog(int sw, int sh_total) {
             DrawText(TextSubtext(sb, 0, 120), x, y, 13, C_MUT); y += 26;
         }
         char b[96];
-        snprintf(b, sizeof b, "%d site(s) déjà préparé(s) sur %d point(s) enregistré(s)", g_diag.nsites, npts);
-        diag_line(x, &y, g_diag.nsites > 0, b, g_diag.nsites ? "" : "Les sites préparés s'ouvrent sans aucune installation supplémentaire.");
+        snprintf(b, sizeof b, TR("%d site(s) déjà préparé(s) sur %d point(s) enregistré(s)"), g_diag.nsites, npts);
+        diag_line(x, &y, g_diag.nsites > 0 || npts == 0, b, g_diag.nsites ? "" : "Les sites préparés s'ouvrent sans aucune installation supplémentaire.");
         DrawText("Sans les fichiers de relief, vous pouvez quand même utiliser tous les sites déjà préparés.", x, y + 6, 14, C_MUT);
         if (ui_button((Rectangle){(float)x, box.y + box.height - 112, 230, 30}, "Ouvrir le dossier des données", false)) { MKDIR("data"); MKDIR("data/source"); sln_open("data"); }
     } else if (g_dialog == 6) {
