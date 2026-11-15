@@ -38,7 +38,7 @@ The team defined the concept and requirements, tested the software and made the 
 
 ## Deliverables / Livrables
 
-- Demo (video or slides): _([add link here](https://mega.nz/file/BsQyRKTD#AGUAdAAAABhSIJWqJIWNEwAAAAAAAAAAUqSVmySFjRM))_
+- Demo (video or slides): _([Video prensentation Selene](https://mega.nz/file/BsQyRKTD#AGUAdAAAABhSIJWqJIWNEwAAAAAAAAAAUqSVmySFjRM))_
 - Website / app (if any): native Windows application (no website), see "How to run it" below
 - Other files: see the `docs/` and `images/` folders
 
