@@ -54,6 +54,7 @@ static int g_ntr = 0;
 static char *g_tr_buf = NULL;
 static char g_lang[16] = "fr";
 static int g_units = 0;                      /* 0 = métrique (m, km), 1 = impérial (ft, mi) */
+static int g_moon_fs = 0; // 0 = mode normal avec panneau latéral, 1 = vue lune en plein écran
 
 static int tr_cmp(const void *a, const void *b) { return strcmp(((const TrEntry *)a)->key, ((const TrEntry *)b)->key); }
 
@@ -1519,7 +1520,7 @@ static void draw_compass(Camera3D cam, Rectangle view, int vw, int vh) {
     Vector3 pole[2] = {{0, -GLOBE_R * 1.02f, 0}, {0, GLOBE_R * 1.02f, 0}};
     const char *lab[2] = {"S", "N"};
     Color col[2] = {C_SUN, C_MUT};
-    Vector2 ctr = {view.x + view.width - 70, view.y + view.height - 70};
+    Vector2 ctr = {view.x + view.width - 124, view.y + view.height - 70};      /* à gauche du bouton plein écran */
     DrawCircle((int)ctr.x, (int)ctr.y, 46, (Color){16, 21, 28, 220});
     DrawCircleLines((int)ctr.x, (int)ctr.y, 46, C_LINE);
     for (int i = 0; i < 2; i++) {
@@ -1532,9 +1533,20 @@ static void draw_compass(Camera3D cam, Rectangle view, int vw, int vh) {
         DrawLineEx(ctr, tip, 2.0f, col[i]);
         if (front) DrawCircle((int)tip.x, (int)tip.y, 6, col[i]); else DrawCircleLines((int)tip.x, (int)tip.y, 6, col[i]);
         DrawText(lab[i], (int)tip.x - 3 + (int)((tip.x - ctr.x) * 0.3f), (int)tip.y - 7 + (int)((tip.y - ctr.y) * 0.3f), 14, WHITE);
-        if (i == 0 && front) {   /* repère directement sur la Lune */
-            DrawCircleLines((int)(view.x + p.x), (int)p.y, 7, C_SUN);
-            DrawText("Pôle Sud", (int)(view.x + p.x) + 10, (int)p.y - 7, 14, C_SUN);
+        Color lc = (i == 0) ? C_SUN : C_TXT;           /* pôle Sud en jaune, pôle Nord en blanc */
+        if (front) {   /* repère directement sur la Lune */
+            DrawCircleLines((int)(view.x + p.x), (int)p.y, 7, lc);
+            DrawText(i == 0 ? "Pôle Sud" : "Pôle Nord", (int)(view.x + p.x) + 10, (int)p.y - 7, 14, lc);
+        } else {       /* pôle derrière la Lune : étiquette estompée sur le bord, dans sa direction */
+            float dcam = Vector3Length(cam.position);
+            float rpx = (vh * 0.5f) / tanf(cam.fovy * 0.5f * DEG2RAD) * tanf(asinf(fminf(GLOBE_R / dcam, 0.999f)));
+            Vector2 u = (len > 4.0f) ? (Vector2){d.x / len, d.y / len} : (Vector2){0.0f, i == 0 ? 1.0f : -1.0f};
+            Vector2 e = {c0.x + u.x * rpx, c0.y + u.y * rpx};
+            Color dim = ColorAlpha(lc, 0.65f);
+            const char *nm = i == 0 ? "Pôle Sud (face cachée)" : "Pôle Nord (face cachée)";
+            int tw = MeasureText(nm, 14);
+            DrawCircleLines((int)(view.x + e.x), (int)e.y, 6, dim);
+            DrawText(nm, (int)(view.x + e.x) + (u.x >= 0.0f ? 10 : -10 - tw), (int)e.y - 7, 14, dim);
         }
     }
 }
@@ -1986,7 +1998,7 @@ static int export_csv(Rank *r, int cur_site, int zlev, char *msg, size_t msgn) {
 /* ===================== Barre de menus, boîtes de dialogue, notifications ===================== */
 enum { A_NONE = 0, A_NEWPT, A_EXPORT, A_OPEN_EXPORTS, A_OPEN_DATA, A_QUIT, A_RENAME, A_DELETE, A_RESET_RK,
        A_TAB0, A_TAB1, A_TAB2, A_TAB3, A_ZOOMIN, A_ZOOMOUT, A_FULLSCREEN, A_PREPARE, A_ANALYZE, A_CLEAR_CACHE,
-       A_CSV_FMT, A_DIAG, A_HELP, A_SHORTCUTS, A_ABOUT, A_CLEAR_ALL, A_PREFS };
+       A_CSV_FMT, A_DIAG, A_HELP, A_SHORTCUTS, A_ABOUT, A_CLEAR_ALL, A_PREFS, A_MOONFS };
 typedef struct { const char *label; const char *key; int act; int on; } MItem;
 typedef struct { const char *title; MItem it[12]; int n; } MMenu;
 
@@ -2150,7 +2162,7 @@ static const char *ABOUT[] = {
 };
 
 /* ----- vérification de l'installation ----- */
-static struct { int globe, tool_exe, tool_py, python_ok, nsites; char polar[80], global[80]; } g_diag;
+static struct { int globe, tool_exe, tool_py, python_ok, nsites, ntif; char polar[80], global[80], cwd[260], seen[200]; } g_diag;
 
 static void diag_scan(void) {
     memset(&g_diag, 0, sizeof g_diag);
@@ -2159,17 +2171,21 @@ static void diag_scan(void) {
     g_diag.tool_py = FileExists("tools/prepare_data.py");
     if (!g_diag.tool_exe && g_diag.tool_py)
         g_diag.python_ok = sln_run_hidden("python --version > nul 2>&1") == 0 || sln_run_hidden("py --version > nul 2>&1") == 0;
-    const char *dirs[3] = {".", "data", "data/source"};
-    for (int d = 0; d < 3; d++) {
+    snprintf(g_diag.cwd, sizeof g_diag.cwd, "%s", GetWorkingDirectory());
+    const char *dirs[2] = {".", "data"};               /* "data" est parcouru avec tous ses sous-dossiers (source, sources, ...), comme tools/prepare_data.py */
+    for (int d = 0; d < 2; d++) {
         if (!DirectoryExists(dirs[d])) continue;
-        FilePathList fl = LoadDirectoryFilesEx(dirs[d], ".tif;.tiff", false);
+        FilePathList fl = LoadDirectoryFilesEx(dirs[d], ".tif;.tiff;.TIF;.TIFF", d == 1);
         for (unsigned int i = 0; i < fl.count; i++) {
             const char *nm = GetFileName(fl.paths[i]);
             char low[96];
             size_t j = 0;
             for (; nm[j] && j < sizeof low - 1; j++) low[j] = (char)((nm[j] >= 'A' && nm[j] <= 'Z') ? nm[j] + 32 : nm[j]);
             low[j] = 0;
-            if (strncmp(low, "ldem", 4) != 0) continue;
+            g_diag.ntif++;
+            if (strlen(g_diag.seen) + strlen(nm) + 3 < sizeof g_diag.seen && g_diag.ntif <= 4)
+                strcat(strcat(g_diag.seen, g_diag.seen[0] ? ", " : ""), nm);
+            if (strstr(low, "ldem") == NULL) continue;
             if (strstr(low, "80s") != NULL) { if (!g_diag.polar[0]) snprintf(g_diag.polar, sizeof g_diag.polar, "%s", nm); }
             else if (strstr(low, "_err") == NULL && strstr(low, "effres") == NULL) { if (!g_diag.global[0]) snprintf(g_diag.global, sizeof g_diag.global, "%s", nm); }
         }
@@ -2215,8 +2231,16 @@ static int draw_dialog(int sw, int sh_total) {
         int tool = g_diag.tool_exe || g_diag.python_ok;
         diag_line(x, &y, tool, "Outil de préparation des sites",
                   g_diag.tool_exe ? "tools/prepare_data.exe (autonome)" : (g_diag.python_ok ? "Python détecté : tools/prepare_data.py" : "Manquant : placez tools/prepare_data.exe, ou installez Python + rasterio."));
-        diag_line(x, &y, g_diag.polar[0] != 0, "Relief LOLA du pôle Sud (80 m par pixel)", g_diag.polar[0] ? g_diag.polar : "Absent : placez LDEM_80S_80MPP_ADJ.tiff dans le dossier data/source.");
-        diag_line(x, &y, g_diag.global[0] != 0, "Relief LOLA mondial (hors pôle Sud)", g_diag.global[0] ? g_diag.global : "Absent : placez ldem_64 ou LDEM128 (.tif) dans le dossier data/source.");
+        diag_line(x, &y, g_diag.polar[0] != 0, "Relief LOLA du pôle Sud (80 m par pixel)", g_diag.polar[0] ? g_diag.polar : "Absent : placez LDEM_80S_80MPP_ADJ.tif dans data/source (ou un sous-dossier de data).");
+        diag_line(x, &y, g_diag.global[0] != 0, "Relief LOLA mondial (hors pôle Sud)", g_diag.global[0] ? g_diag.global : "Absent : placez ldem_64 ou LDEM128 (.tif) dans data/source (ou un sous-dossier de data).");
+        {
+            char sb[420];
+            snprintf(sb, sizeof sb, "Dossier de travail : %s", g_diag.cwd);
+            DrawText(TextSubtext(sb, 0, 120), x, y, 13, C_MUT); y += 18;
+            snprintf(sb, sizeof sb, "Fichiers .tif/.tiff vus dans ce dossier et dans data/ : %d%s%s", g_diag.ntif, g_diag.ntif ? "  (" : "", g_diag.ntif ? g_diag.seen : "");
+            if (g_diag.ntif) strcat(sb, ")");
+            DrawText(TextSubtext(sb, 0, 120), x, y, 13, C_MUT); y += 26;
+        }
         char b[96];
         snprintf(b, sizeof b, "%d site(s) déjà préparé(s) sur %d point(s) enregistré(s)", g_diag.nsites, npts);
         diag_line(x, &y, g_diag.nsites > 0, b, g_diag.nsites ? "" : "Les sites préparés s'ouvrent sans aucune installation supplémentaire.");
@@ -2410,6 +2434,7 @@ int main(void) {
             if (IsKeyPressed(KEY_F1)) act = A_HELP;
             if (IsKeyPressed(KEY_F2)) act = A_RENAME;
             if (IsKeyPressed(KEY_F11)) act = A_FULLSCREEN;
+            if (g_moon_fs && IsKeyPressed(KEY_ESCAPE)) g_moon_fs = 0;
         }
         switch (act) {
             case A_NEWPT:
@@ -2451,6 +2476,7 @@ int main(void) {
             case A_ZOOMIN: if (zlev < 4 && (cur_site >= 0 || zone_valid)) { zlev++; pending_load = cur_site; } break;
             case A_ZOOMOUT: if (zlev > 0 && (cur_site >= 0 || zone_valid)) { zlev--; pending_load = cur_site; } break;
             case A_FULLSCREEN: ToggleBorderlessWindowed(); break;
+            case A_MOONFS: g_moon_fs = !g_moon_fs; break;
             case A_PREPARE:
                 if (cur_site >= 0 || zone_valid) pending_prepare = cur_site;
                 else toast("Choisissez d'abord un point enregistré (onglet Globe).");
@@ -2621,7 +2647,8 @@ int main(void) {
         int gm = (mode == 0);
         int sm = (mode == 2);                    /* mode vue du sol */
         float eff_exag = sm ? 1.0f : exag;       /* en vue du sol, relief réel (x1) indispensable pour un horizon exact */
-        Rectangle view = {PANEL_W, 0, (float)(sw - PANEL_W), (float)(gm ? sh : sh - TL_H)};
+        int panel_w = g_moon_fs ? 0 : PANEL_W;                 /* plein écran de la vue Lune : ni panneau ni frise */
+        Rectangle view = {(float)panel_w, 0, (float)(sw - panel_w), (float)((gm || g_moon_fs) ? sh : sh - TL_H)};
         Rectangle tl = {PANEL_W, (float)(sh - TL_H), (float)(sw - PANEL_W), TL_H};
         Vector2 m = GetMousePosition();
         int vw = (int)view.width, vh = (int)view.height;
@@ -2641,7 +2668,9 @@ int main(void) {
 
         Rectangle zo = {view.x + view.width - 262, 6, 256, 30};      /* boutons de taille de zone */
         Rectangle ro = {view.x + 12, 34, 392, (mode == 3 && site_ready && year_ready) ? rank_table_height(&rk) : 0.0f};   /* tableau de classement */
-        bool in_view = !g_block && CheckCollisionPointRec(m, view) && (gm || (!CheckCollisionPointRec(m, zo) && !CheckCollisionPointRec(m, ro)));
+        Rectangle fsb = {view.x + view.width - 44, view.y + view.height - 44, 34, 34};   /* bouton plein écran, angle inférieur droit de la vue Lune */
+        bool in_view = !g_block && CheckCollisionPointRec(m, view) && !CheckCollisionPointRec(m, fsb)
+                       && (gm || (!CheckCollisionPointRec(m, zo) && !CheckCollisionPointRec(m, ro)));
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { press = m; press_in_view = in_view; }
         if (press_in_view && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             Vector2 d = GetMouseDelta();
@@ -2654,7 +2683,7 @@ int main(void) {
             }
         }
         if (in_view && !sm) *cd = Clamp(*cd * (1.0f - GetMouseWheelMove() * 0.08f), dmin, dmax);
-        if ((mode == 3 || mode == 0) && m.x < PANEL_W) panel_scroll = Clamp(panel_scroll - GetMouseWheelMove() * 40.0f, 0.0f, panel_max);
+        if (!g_moon_fs && (mode == 3 || mode == 0) && m.x < PANEL_W) panel_scroll = Clamp(panel_scroll - GetMouseWheelMove() * 40.0f, 0.0f, panel_max);
 
         if (sm && site.valid) {
             int k = site.y * GW + site.x;
@@ -2888,7 +2917,40 @@ int main(void) {
                                        : "Rouge : pente au-dessus du seuil  |  glisser = tourner, molette = zoom, clic = choisir un site")),
                  (int)view.x + 12, 10, 14, C_MUT);
 
-        /* panneau gauche */
+        /* bouton plein écran (angle inférieur droit de la vue Lune) */
+        {
+            bool hot = !g_block && CheckCollisionPointRec(m, fsb);
+            DrawRectangleRec(fsb, hot ? C_HOT : (Color){16, 21, 28, 215});
+            DrawRectangleLinesEx(fsb, 1, hot ? C_SUN : C_LINE);
+            Color ic = hot ? C_SUN : C_TXT;
+            float cx0 = fsb.x + fsb.width / 2, cy0 = fsb.y + fsb.height / 2;
+            for (int a = -1; a <= 1; a += 2)
+                for (int b = -1; b <= 1; b += 2) {
+                    float px = cx0 + a * (g_moon_fs ? 4.0f : 9.0f), py = cy0 + b * (g_moon_fs ? 4.0f : 9.0f);
+                    float dir = g_moon_fs ? 1.0f : -1.0f;                 /* plein écran : bras vers le centre ; réduire : bras vers l'extérieur */
+                    DrawLineEx((Vector2){px, py}, (Vector2){px + a * dir * 6.0f, py}, 2.0f, ic);
+                    DrawLineEx((Vector2){px, py}, (Vector2){px, py + b * dir * 6.0f}, 2.0f, ic);
+                }
+            if (hot) {
+                const char *tip = g_moon_fs ? "Quitter le plein écran (Échap)" : "Lune en plein écran";
+                int tw = MeasureText(tip, 14);
+                DrawRectangle((int)(fsb.x - tw - 22), (int)(fsb.y + 8), tw + 12, 20, (Color){16, 21, 28, 235});
+                DrawText(tip, (int)(fsb.x - tw - 16), (int)(fsb.y + 11), 14, C_TXT);
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && g_dialog == 0) g_moon_fs = !g_moon_fs;
+            }
+        }
+        /* en plein écran, la frise n'est plus visible : on garde les commandes de temps du Site / Sol */
+        if (g_moon_fs && (mode == 1 || mode == 2) && site_ready) {
+            float bw = fminf(440.0f, view.width - 160.0f);
+            Rectangle bar = {view.x + 12, view.y + view.height - 74, bw, 62};
+            DrawRectangleRec(bar, (Color){16, 21, 28, 215});
+            DrawText(TextFormat("Date : J+%.1f", t * STEP_H / 24.0f), (int)bar.x + 10, (int)bar.y + 8, 16, C_TXT);
+            if (ui_button((Rectangle){bar.x + bar.width - 98, bar.y + 5, 88, 24}, playing ? "Pause" : "Lecture", playing)) playing = !playing;
+            ui_slider(bar.x + 10, bar.y + 22, bar.width - 20, "", &time_f, 0, N_STEPS - 1, "");
+        }
+
+        /* panneau gauche (masqué quand la vue Lune est en plein écran) */
+        if (!g_moon_fs) {
         DrawRectangle(0, 0, PANEL_W, sh, C_PANEL);
         DrawRectangle(PANEL_W - 1, 0, 1, sh, C_LINE);
         float y = 16;
@@ -3284,8 +3346,9 @@ int main(void) {
             int chosen = ui_dropdown(ddr, dd_items, npts + 1, cur_site + 1);
             if (chosen >= 0 && chosen - 1 != cur_site) { pending_load = chosen - 1; zlev = 1; }
         }
+        } /* fin du panneau gauche */
         /* frise annuelle du site sélectionné (onglet Classer) */
-        if (mode == 3 && site_ready && year_ready) {
+        if (!g_moon_fs && mode == 3 && site_ready && year_ready) {
             DrawRectangleRec(tl, C_PANEL);
             DrawRectangle((int)tl.x, (int)tl.y, (int)tl.width, 1, C_LINE);
             int kk = (rk.sel >= 0 && rk.sel < rk.n) ? rk.c[rk.sel].k : rk.cy * GW + rk.cx;
@@ -3374,6 +3437,7 @@ int main(void) {
         mi(&menus[2], "Zone plus petite", NULL, A_ZOOMOUT, can_prep && zlev > 0);
         mi(&menus[2], "-", NULL, A_NONE, 0);
         mi(&menus[2], "Plein écran", "F11", A_FULLSCREEN, 1);
+        mi(&menus[2], g_moon_fs ? "Quitter la Lune en plein écran" : "Lune en plein écran", "Échap", A_MOONFS, 1);
         menus[3].title = "Outils";
         mi(&menus[3], "Préparer / re-préparer le site actuel", NULL, A_PREPARE, can_prep);
         mi(&menus[3], "Analyser l'année (onglet Analyse)", NULL, A_ANALYZE, can_year);
@@ -3393,7 +3457,7 @@ int main(void) {
 
         if (GetTime() < g_toast_until) {                    /* notification temporaire en bas de la fenêtre */
             int tw = MeasureText(g_toast, 16) + 36;
-            Rectangle tb = {(float)(sw - tw) / 2 + PANEL_W / 2.0f, (float)sh_total - 52, (float)tw, 34};
+            Rectangle tb = {(float)(sw - tw) / 2 + (g_moon_fs ? 0 : PANEL_W) / 2.0f, (float)sh_total - 52, (float)tw, 34};
             DrawRectangleRec(tb, (Color){16, 21, 28, 240});
             DrawRectangleLinesEx(tb, 1, C_SUN);
             DrawText(g_toast, (int)tb.x + 18, (int)tb.y + 9, 16, C_TXT);
