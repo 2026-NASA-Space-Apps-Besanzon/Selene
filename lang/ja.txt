@@ -440,3 +440,26 @@ Cabeus	カベウス
 Malapert	マラパート
 Nobile	ノビレ
 Amundsen	アムンゼン
+Vue réelle	実景
+Exposition	露出
+Soleil à sa position réelle, ombres portées	太陽は実際の位置、地形の落ち影つき。
+du relief, relief réel x1 (sans exagération).	地形は実寸（x1、強調なし）。
+Échelle de l'interface	表示の拡大率
+Auto	自動
+Interface plus grande	表示を拡大
+Interface plus petite	表示を縮小
+Échelle automatique	自動倍率
+Échelle de l'interface : %.0f %%	表示の拡大率: %.0f %%
+Échelle de l'interface : automatique	表示の拡大率: 自動
+Ctrl + =  /  Ctrl + -     Interface plus grande / plus petite	Ctrl + =  /  Ctrl + -     表示を拡大 / 縮小
+Ctrl + 0                  Échelle automatique de l'interface	Ctrl + 0                  表示倍率を自動に
+Pôle Sud (face cachée)	南極（裏側）
+Pôle Nord (face cachée)	北極（裏側）
+Absent : placez LDEM_80S_80MPP_ADJ.tif dans data/source (ou un sous-dossier de data).	なし: LDEM_80S_80MPP_ADJ.tif を data/source（または data のサブフォルダー）に置いてください。
+Absent : placez ldem_64 ou LDEM128 (.tif) dans data/source (ou un sous-dossier de data).	なし: ldem_64 または LDEM128 (.tif) を data/source（または data のサブフォルダー）に置いてください。
+Dossier de travail : %s	作業フォルダー: %s
+Fichiers .tif/.tiff vus dans ce dossier et dans data/ : %d%s%s	このフォルダーと data/ にある .tif/.tiff ファイル: %d%s%s
+Quitter le plein écran (Échap)	全画面表示を終了 (Esc)
+Lune en plein écran	月を全画面表示
+Quitter la Lune en plein écran	月の全画面表示を終了
+Échap	Esc

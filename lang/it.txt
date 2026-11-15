@@ -417,3 +417,26 @@ Science	Scienza
 Missions	Missioni
 Page %d / 2	Pagina %d / 2
 Clavius	Clavio
+Vue réelle	Vista reale
+Exposition	Esposizione
+Soleil à sa position réelle, ombres portées	Sole nella sua posizione reale, ombre portate
+du relief, relief réel x1 (sans exagération).	del rilievo, rilievo reale x1 (senza esagerazione).
+Échelle de l'interface	Scala dell'interfaccia
+Auto	Auto
+Interface plus grande	Interfaccia più grande
+Interface plus petite	Interfaccia più piccola
+Échelle automatique	Scala automatica
+Échelle de l'interface : %.0f %%	Scala dell'interfaccia: %.0f %%
+Échelle de l'interface : automatique	Scala dell'interfaccia: automatica
+Ctrl + =  /  Ctrl + -     Interface plus grande / plus petite	Ctrl + =  /  Ctrl + -     Interfaccia più grande / più piccola
+Ctrl + 0                  Échelle automatique de l'interface	Ctrl + 0                  Scala automatica dell'interfaccia
+Pôle Sud (face cachée)	Polo Sud (lato nascosto)
+Pôle Nord (face cachée)	Polo Nord (lato nascosto)
+Absent : placez LDEM_80S_80MPP_ADJ.tif dans data/source (ou un sous-dossier de data).	Assente: inserisci LDEM_80S_80MPP_ADJ.tif in data/source (o in una sottocartella di data).
+Absent : placez ldem_64 ou LDEM128 (.tif) dans data/source (ou un sous-dossier de data).	Assente: inserisci ldem_64 o LDEM128 (.tif) in data/source (o in una sottocartella di data).
+Dossier de travail : %s	Cartella di lavoro: %s
+Fichiers .tif/.tiff vus dans ce dossier et dans data/ : %d%s%s	File .tif/.tiff trovati in questa cartella e in data/: %d%s%s
+Quitter le plein écran (Échap)	Esci da schermo intero (Esc)
+Lune en plein écran	Luna a schermo intero
+Quitter la Lune en plein écran	Esci dalla Luna a schermo intero
+Échap	Esc

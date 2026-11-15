@@ -426,3 +426,26 @@ Clavius	Clavio
 de Gerlache	de Gerlache
 Kepler	Kepler
 Page %d / 2	Página %d / 2
+Vue réelle	Vista real
+Exposition	Exposición
+Soleil à sa position réelle, ombres portées	Sol en su posición real, sombras proyectadas
+du relief, relief réel x1 (sans exagération).	del relieve, relieve real x1 (sin exageración).
+Échelle de l'interface	Escala de la interfaz
+Auto	Auto
+Interface plus grande	Interfaz más grande
+Interface plus petite	Interfaz más pequeña
+Échelle automatique	Escala automática
+Échelle de l'interface : %.0f %%	Escala de la interfaz: %.0f %%
+Échelle de l'interface : automatique	Escala de la interfaz: automática
+Ctrl + =  /  Ctrl + -     Interface plus grande / plus petite	Ctrl + =  /  Ctrl + -     Interfaz más grande / más pequeña
+Ctrl + 0                  Échelle automatique de l'interface	Ctrl + 0                  Escala automática de la interfaz
+Pôle Sud (face cachée)	Polo Sur (cara oculta)
+Pôle Nord (face cachée)	Polo Norte (cara oculta)
+Absent : placez LDEM_80S_80MPP_ADJ.tif dans data/source (ou un sous-dossier de data).	Ausente: coloca LDEM_80S_80MPP_ADJ.tif en data/source (o en una subcarpeta de data).
+Absent : placez ldem_64 ou LDEM128 (.tif) dans data/source (ou un sous-dossier de data).	Ausente: coloca ldem_64 o LDEM128 (.tif) en data/source (o en una subcarpeta de data).
+Dossier de travail : %s	Carpeta de trabajo: %s
+Fichiers .tif/.tiff vus dans ce dossier et dans data/ : %d%s%s	Archivos .tif/.tiff vistos en esta carpeta y en data/: %d%s%s
+Quitter le plein écran (Échap)	Salir de pantalla completa (Esc)
+Lune en plein écran	Luna a pantalla completa
+Quitter la Lune en plein écran	Salir de la Luna a pantalla completa
+Échap	Esc

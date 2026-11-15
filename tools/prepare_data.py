@@ -16,6 +16,7 @@ Usage :
   python tools/prepare_data.py --lat -89.9 --lon 0         (cherche tout seul LDEM_80S_* et/ou LDEM128_*)
   python tools/prepare_data.py --dem LDEM_80S_80MPP_ADJ.TIF --lat -89.9 --lon 0
   python tools/prepare_data.py --dem LDEM128_PA_pixel_202405.tif --lat -60 --lon 30
+     (MNT mondial reconnu quel que soit son format : degrés ou mètres, longitudes -180..180 ou 0..360, entiers LOLA x 0,5 m ou flottants)
   python tools/prepare_data.py --lat -85 --lon 10 --source global     (forcer le MNT mondial)
   python tools/prepare_data.py --lat -89.9 --lon 0 --start 2026-12-01
 Les deux types de fichiers sont reconnus automatiquement (polaire stéréographique ou mondial cylindrique).
@@ -138,7 +139,20 @@ def _aeqd_inverse(lat0, lon0, X, Y):
     return p, lat, lon
 
 
-def vertical_scale(ds, vscale=None, voffset=None):
+def sample_values(ds, nx=24, ny=12, win=64):
+    """Valeurs prises dans une grille de petites fenêtres réparties sur toute l'image (rapide, même pour un fichier de plusieurs Go)."""
+    from rasterio.windows import Window
+    w, h = min(win, ds.width), min(win, ds.height)
+    vals = []
+    for j in range(ny):
+        for i in range(nx):
+            c = min(max(int((i + 0.5) * ds.width / nx - w / 2), 0), ds.width - w)
+            r = min(max(int((j + 0.5) * ds.height / ny - h / 2), 0), ds.height - h)
+            vals.append(ds.read(1, window=Window(c, r, w, h)).astype("float64").ravel())
+    return np.concatenate(vals)
+
+
+def vertical_scale(ds, vscale=None, voffset=None, name=""):
     """Renvoie (échelle, décalage, description) tels que mètres = valeur * échelle + décalage."""
     if vscale is not None:
         return vscale, voffset or 0.0, "imposé (--vscale)"
@@ -146,10 +160,8 @@ def vertical_scale(ds, vscale=None, voffset=None):
     of = ds.offsets[0] if ds.offsets else None
     if (sc not in (None, 1.0)) or (of not in (None, 0.0)):
         return (sc if sc is not None else 1.0), (of or 0.0), "métadonnées du fichier"
-    from rasterio.enums import Resampling
     dtype = ds.dtypes[0]
-    sm = ds.read(1, out_shape=(max(ds.height // 32, 1), max(ds.width // 32, 1)),
-                 resampling=Resampling.nearest).astype("float64")
+    sm = sample_values(ds)
     if ds.nodata is not None:
         sm = sm[sm != ds.nodata]
     sm = sm[np.isfinite(sm)]
@@ -158,7 +170,31 @@ def vertical_scale(ds, vscale=None, voffset=None):
         return 0.5, -10000.0, "uint16 décalé : (v - 20000) x 0,5"
     if dtype.startswith("float"):
         return (1000.0, 0.0, "kilomètres") if amax < 30 else (1.0, 0.0, "mètres")
-    return (0.5, 0.0, "demi-mètres") if amax > 12500 else (1.0, 0.0, "mètres")
+    # entiers signés : les LDEM de la mission LOLA sont en demi-mètres (DN x 0,5 = altitude par rapport à 1737,4 km)
+    if name.lower().startswith("ldem") or amax > 12500:
+        return 0.5, 0.0, "demi-mètres (convention LOLA : valeur x 0,5)"
+    return 1.0, 0.0, "mètres"
+
+
+def geo_origin(ds):
+    """(longitude du bord gauche, latitude du bord haut) de l'image, en degrés, quel que soit le système de coordonnées :
+    géographique -180..180 ou 0..360, ou projection cylindrique en mètres (équirectangulaire). Les LDEM sont souvent en 0..360."""
+    left, top = ds.bounds.left, ds.bounds.top
+    lon_w, lat_n = -180.0, 90.0
+    try:
+        if ds.crs is not None and ds.crs.is_geographic:
+            lon_w, lat_n = left, top
+        elif ds.crs is not None:
+            from rasterio.crs import CRS
+            from rasterio.warp import transform
+            (lo,), (la,) = transform(ds.crs, CRS.from_string(LL_PROJ), [left], [top])
+            lon_w, lat_n = lo, la
+    except Exception as ex:
+        print(f"[!] Géoréférencement illisible ({ex}) : longitudes -180..180 et latitude 90 supposées.")
+    if not (-360.0 <= lon_w <= 360.0 and 80.0 <= lat_n <= 90.5):
+        print(f"[!] Géoréférencement inattendu (bord gauche {lon_w:.2f}, bord haut {lat_n:.2f}) : -180..180 et 90 supposés.")
+        lon_w, lat_n = -180.0, 90.0
+    return lon_w, min(lat_n, 90.0)
 
 
 def prepare_dem_global(path, lat, lon, cell_m, zoom=1.0, vscale=None, voffset=None):
@@ -174,9 +210,13 @@ def prepare_dem_global(path, lat, lon, cell_m, zoom=1.0, vscale=None, voffset=No
         native = math.radians(deg) * MOON_R                   # m / pixel à l'équateur
         if cell_m is None:
             cell_m = round(native * zoom)
-        scale, offset, how = vertical_scale(ds, vscale, voffset)
+        scale, offset, how = vertical_scale(ds, vscale, voffset, os.path.basename(path))
+        lon_w, lat_n = geo_origin(ds)
+        if "_pa" in os.path.basename(path).lower():
+            print("[i] Fichier en repère PA (axes principaux) : ses coordonnées sont utilisées telles quelles. L'écart avec le repère\n"
+                  "    « Terre moyenne » des éphémérides est inférieur à 0,03 deg (moins d'1 km) : négligeable pour une zone de 30 km.")
         nodata = ds.nodata
-        print(f"MNT mondial {os.path.basename(path)} : {W}x{H}, type {ds.dtypes[0]}, altitudes en {how}")
+        print(f"MNT mondial {os.path.basename(path)} : {W}x{H}, type {ds.dtypes[0]}, altitudes en {how}, longitudes de {round(lon_w, 3) + 0.0:.1f} à {lon_w + 360.0:.1f}, pas {deg * 60:.2f} arcmin")
 
         # grille locale : x vers l'est, y vers le nord, centrée sur le site
         idx = np.arange(GRID)
@@ -186,10 +226,10 @@ def prepare_dem_global(path, lat, lon, cell_m, zoom=1.0, vscale=None, voffset=No
         n0, lat_g, lon_g = _aeqd_inverse(lat, lon, X, Y)
         lonu = lon + ((lon_g - lon + 180.0) % 360.0 - 180.0)  # longitude continue autour du site
 
-        r0 = max(int(math.floor((90.0 - lat_g.max()) / deg)) - 2, 0)
-        r1 = min(int(math.ceil((90.0 - lat_g.min()) / deg)) + 2, H)
-        c0 = int(math.floor((lonu.min() + 180.0) / deg)) - 2
-        c1 = int(math.ceil((lonu.max() + 180.0) / deg)) + 2
+        r0 = max(int(math.floor((lat_n - lat_g.max()) / deg)) - 2, 0)
+        r1 = min(int(math.ceil((lat_n - lat_g.min()) / deg)) + 2, H)
+        c0 = int(math.floor((lonu.min() - lon_w) / deg)) - 2
+        c1 = int(math.ceil((lonu.max() - lon_w) / deg)) + 2
         cols = np.arange(c0, c1) % W                          # la longitude boucle à 180 deg
         if (r1 - r0) * len(cols) > 120_000_000:
             sys.exit("[!] Zone trop grande pour ce site : choisissez une zone plus petite (--zoom).")
@@ -209,8 +249,8 @@ def prepare_dem_global(path, lat, lon, cell_m, zoom=1.0, vscale=None, voffset=No
     if bad.any():
         block[bad] = float(block[~bad].mean()) if (~bad).any() else 0.0
 
-    fr = np.clip((90.0 - lat_g) / deg - 0.5 - r0, 0, block.shape[0] - 1.001)
-    fc = np.clip((lonu + 180.0) / deg - 0.5 - c0, 0, block.shape[1] - 1.001)
+    fr = np.clip((lat_n - lat_g) / deg - 0.5 - r0, 0, block.shape[0] - 1.001)
+    fc = np.clip((lonu - lon_w) / deg - 0.5 - c0, 0, block.shape[1] - 1.001)
     ri, ci = fr.astype(int), fc.astype(int)
     wr, wc = fr - ri, fc - ci
     arr = ((1 - wr) * (1 - wc) * block[ri, ci] + (1 - wr) * wc * block[ri, ci + 1]
@@ -352,13 +392,22 @@ def find_dems(explicit):
     return found
 
 
+def dem_width(path):
+    """Largeur en pixels : sert à choisir le MNT mondial le plus détaillé."""
+    import rasterio
+    with rasterio.open(path) as ds:
+        return ds.width
+
+
 def dem_kind(path):
     """'global' (cylindrique, longitude/latitude) ou 'polar' (projeté, stéréographique)."""
     import rasterio
     with rasterio.open(path) as ds:
-        if ds.crs is not None:
-            return "global" if ds.crs.is_geographic else "polar"
-        return "global" if abs(ds.width / ds.height - 2.0) < 0.05 else "polar"
+        if abs(ds.width / ds.height - 2.0) < 0.05:           # carte mondiale 2:1 (en degrés OU en mètres, ex. LDEM128_PA_pixel_*)
+            return "global"
+        if ds.crs is not None and ds.crs.is_geographic:
+            return "global"
+        return "polar"
 
 
 def main():
@@ -396,7 +445,8 @@ def main():
         if not cands:
             print("Dossiers examinés :", "; ".join(SEARCHED))
         polar = next((p for p in cands if kinds.get(p) == "polar"), None)
-        glob_dem = next((p for p in cands if kinds.get(p) == "global"), None)
+        globs = [p for p in cands if kinds.get(p) == "global"]
+        glob_dem = max(globs, key=dem_width) if globs else None            # le plus fin : ldem_64 plutôt que ldem_16
         cell = (a.cell or 200.0) * a.zoom
         half_deg = math.degrees(GRID * cell / 2.0 / MOON_R) * 1.5          # demi-fenêtre, diagonale comprise
         polar_ok = polar is not None and a.lat + half_deg <= -80.0         # le MNT polaire s'arrête à 80 deg S

@@ -2282,9 +2282,9 @@ static int draw_dialog(int sw, int sh_total) {
         diag_line(x, &y, g_diag.global[0] != 0, "Relief LOLA mondial (hors pôle Sud)", g_diag.global[0] ? g_diag.global : "Absent : placez ldem_64 ou LDEM128 (.tif) dans data/source (ou un sous-dossier de data).");
         {
             char sb[420];
-            snprintf(sb, sizeof sb, "Dossier de travail : %s", g_diag.cwd);
+            snprintf(sb, sizeof sb, TR("Dossier de travail : %s"), g_diag.cwd);
             DrawText(TextSubtext(sb, 0, 120), x, y, 13, C_MUT); y += 18;
-            snprintf(sb, sizeof sb, "Fichiers .tif/.tiff vus dans ce dossier et dans data/ : %d%s%s", g_diag.ntif, g_diag.ntif ? "  (" : "", g_diag.ntif ? g_diag.seen : "");
+            snprintf(sb, sizeof sb, TR("Fichiers .tif/.tiff vus dans ce dossier et dans data/ : %d%s%s"), g_diag.ntif, g_diag.ntif ? "  (" : "", g_diag.ntif ? g_diag.seen : "");
             if (g_diag.ntif) strcat(sb, ")");
             DrawText(TextSubtext(sb, 0, 120), x, y, 13, C_MUT); y += 26;
         }

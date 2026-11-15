@@ -407,3 +407,26 @@ Les exports CSV restent toujours en unités métriques (m, km).	CSV exports alwa
 Ajouter une langue : copiez lang/_modele.txt en lang/xx.txt, traduisez la colonne de droite,	Add a language: copy lang/_modele.txt to lang/xx.txt, translate the right-hand column,
 puis ajoutez en première ligne  #name=NomDeLaLangue.  Aucune installation n'est nécessaire.	then add  #name=LanguageName  as the first line.  No installation is needed.
 O	W
+Vue réelle	Real view
+Exposition	Exposure
+Soleil à sa position réelle, ombres portées	Sun at its real position, cast shadows
+du relief, relief réel x1 (sans exagération).	of the terrain, true relief x1 (no exaggeration).
+Échelle de l'interface	Interface scale
+Auto	Auto
+Interface plus grande	Larger interface
+Interface plus petite	Smaller interface
+Échelle automatique	Automatic scale
+Échelle de l'interface : %.0f %%	Interface scale: %.0f %%
+Échelle de l'interface : automatique	Interface scale: automatic
+Ctrl + =  /  Ctrl + -     Interface plus grande / plus petite	Ctrl + =  /  Ctrl + -     Larger / smaller interface
+Ctrl + 0                  Échelle automatique de l'interface	Ctrl + 0                  Automatic interface scale
+Pôle Sud (face cachée)	South Pole (far side)
+Pôle Nord (face cachée)	North Pole (far side)
+Absent : placez LDEM_80S_80MPP_ADJ.tif dans data/source (ou un sous-dossier de data).	Not found: place LDEM_80S_80MPP_ADJ.tif in data/source (or a subfolder of data).
+Absent : placez ldem_64 ou LDEM128 (.tif) dans data/source (ou un sous-dossier de data).	Not found: place ldem_64 or LDEM128 (.tif) in data/source (or a subfolder of data).
+Dossier de travail : %s	Working folder: %s
+Fichiers .tif/.tiff vus dans ce dossier et dans data/ : %d%s%s	.tif/.tiff files seen in this folder and in data/: %d%s%s
+Quitter le plein écran (Échap)	Exit full screen (Esc)
+Lune en plein écran	Moon full screen
+Quitter la Lune en plein écran	Exit Moon full screen
+Échap	Esc

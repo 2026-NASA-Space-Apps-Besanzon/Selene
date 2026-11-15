@@ -440,3 +440,26 @@ Cabeus	Кабеус
 Malapert	Малаперт
 Nobile	Нобиле
 Amundsen	Амундсен
+Vue réelle	Реальный вид
+Exposition	Экспозиция
+Soleil à sa position réelle, ombres portées	Солнце в реальном положении, тени
+du relief, relief réel x1 (sans exagération).	рельефа, реальный рельеф x1 (без усиления).
+Échelle de l'interface	Масштаб интерфейса
+Auto	Авто
+Interface plus grande	Крупнее интерфейс
+Interface plus petite	Мельче интерфейс
+Échelle automatique	Автоматический масштаб
+Échelle de l'interface : %.0f %%	Масштаб интерфейса: %.0f %%
+Échelle de l'interface : automatique	Масштаб интерфейса: авто
+Ctrl + =  /  Ctrl + -     Interface plus grande / plus petite	Ctrl + =  /  Ctrl + -     Интерфейс крупнее / мельче
+Ctrl + 0                  Échelle automatique de l'interface	Ctrl + 0                  Автоматический масштаб интерфейса
+Pôle Sud (face cachée)	Южный полюс (обратная сторона)
+Pôle Nord (face cachée)	Северный полюс (обратная сторона)
+Absent : placez LDEM_80S_80MPP_ADJ.tif dans data/source (ou un sous-dossier de data).	Нет файла: поместите LDEM_80S_80MPP_ADJ.tif в data/source (или в подпапку data).
+Absent : placez ldem_64 ou LDEM128 (.tif) dans data/source (ou un sous-dossier de data).	Нет файла: поместите ldem_64 или LDEM128 (.tif) в data/source (или в подпапку data).
+Dossier de travail : %s	Рабочая папка: %s
+Fichiers .tif/.tiff vus dans ce dossier et dans data/ : %d%s%s	Файлы .tif/.tiff в этой папке и в data/: %d%s%s
+Quitter le plein écran (Échap)	Выйти из полноэкранного режима (Esc)
+Lune en plein écran	Луна на весь экран
+Quitter la Lune en plein écran	Выйти из полноэкранного режима Луны
+Échap	Esc

@@ -470,3 +470,26 @@ Préférences (langue, unités)...	Préférences (langue, unités)...
 Ctrl+,	Ctrl+,
 Vérifier l'installation...	Vérifier l'installation...
 Aide	Aide
+Vue réelle	Vue réelle
+Exposition	Exposition
+Soleil à sa position réelle, ombres portées	Soleil à sa position réelle, ombres portées
+du relief, relief réel x1 (sans exagération).	du relief, relief réel x1 (sans exagération).
+Échelle de l'interface	Échelle de l'interface
+Auto	Auto
+Interface plus grande	Interface plus grande
+Interface plus petite	Interface plus petite
+Échelle automatique	Échelle automatique
+Échelle de l'interface : %.0f %%	Échelle de l'interface : %.0f %%
+Échelle de l'interface : automatique	Échelle de l'interface : automatique
+Ctrl + =  /  Ctrl + -     Interface plus grande / plus petite	Ctrl + =  /  Ctrl + -     Interface plus grande / plus petite
+Ctrl + 0                  Échelle automatique de l'interface	Ctrl + 0                  Échelle automatique de l'interface
+Pôle Sud (face cachée)	Pôle Sud (face cachée)
+Pôle Nord (face cachée)	Pôle Nord (face cachée)
+Absent : placez LDEM_80S_80MPP_ADJ.tif dans data/source (ou un sous-dossier de data).	Absent : placez LDEM_80S_80MPP_ADJ.tif dans data/source (ou un sous-dossier de data).
+Absent : placez ldem_64 ou LDEM128 (.tif) dans data/source (ou un sous-dossier de data).	Absent : placez ldem_64 ou LDEM128 (.tif) dans data/source (ou un sous-dossier de data).
+Dossier de travail : %s	Dossier de travail : %s
+Fichiers .tif/.tiff vus dans ce dossier et dans data/ : %d%s%s	Fichiers .tif/.tiff vus dans ce dossier et dans data/ : %d%s%s
+Quitter le plein écran (Échap)	Quitter le plein écran (Échap)
+Lune en plein écran	Lune en plein écran
+Quitter la Lune en plein écran	Quitter la Lune en plein écran
+Échap	Échap
